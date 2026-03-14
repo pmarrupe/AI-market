@@ -1,0 +1,17 @@
+.git
+.gitignore
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.db-journal
+.idea/
+.vscode/
+.cursor/
+.DS_Store
+frontend/node_modules/
+frontend/dist/
+agent-transcripts/

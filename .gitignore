@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.eggs/
+
+# Environment
+.env
+
+# Database
+*.db
+*.db-journal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend build (rebuilt in CI/Docker)
+frontend/node_modules/
+frontend/dist/
+
+# Cursor
+.cursor/
+*.iml
+*.plan.md

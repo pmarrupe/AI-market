@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Market Agent</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">AI Market</div>
+        <nav class="side-nav">
+          <a class="active" href="#overview">Overview</a>
+          <a href="#stocks">Stock Intelligence</a>
+          <a href="#industry">Industry Map</a>
+          <a href="#funding">Startup Funding</a>
+          <a href="#launches">Product Launches</a>
+          <a href="#research">Research</a>
+        </nav>
+      </aside>
+
+      <main class="workspace">
+        <header class="header">
+          <div>
+            <p class="eyebrow">Dashboard</p>
+            <h1>AI Market Command Center</h1>
+          </div>
+          <button id="refreshButton" type="button">Refresh Intelligence</button>
+        </header>
+
+        <section id="overview" class="kpi-grid">
+          <article class="kpi-card">
+            <p>Stocks tracked</p>
+            <h3>{{ stocks | length }}</h3>
+          </article>
+          <article class="kpi-card">
+            <p>Startup funding events</p>
+            <h3>{{ startup_funding | length }}</h3>
+          </article>
+          <article class="kpi-card">
+            <p>Product launches</p>
+            <h3>{{ product_launches | length }}</h3>
+          </article>
+          <article class="kpi-card">
+            <p>Research items</p>
+            <h3>{{ research_items | length }}</h3>
+          </article>
+        </section>
+
+        <section class="panel disclaimer">
+          <p>
+            Research intelligence only. This dashboard is not personalized investment advice.
+            Recommendations may be withheld when evidence confidence is too low.
+          </p>
+        </section>
+
+        <section class="panel hero-search-panel">
+          <div class="hero-search">
+            <div class="hero-search-input-wrap">
+              <span class="hero-search-icon">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="9"
+                    cy="9"
+                    r="5.5"
+                    stroke="rgba(203,213,225,0.75)"
+                    stroke-width="1.5"
+                  />
+                  <line
+                    x1="12.5"
+                    y1="12.5"
+                    x2="17"
+                    y2="17"
+                    stroke="rgba(203,213,225,0.75)"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </span>
+              <input
+                id="sp500HeroSearchInput"
+                type="text"
+                placeholder="Search S&amp;P 500 ticker or company (ex: NVDA, Apple, Microsoft)"
+                autocomplete="off"
+              />
+            </div>
+            <p class="hero-search-hint">Press Enter to get AI analysis of the stock.</p>
+          </div>
+        </section>
+
+        <section id="stocks" class="scanner-section">
+          <div class="scanner-header">
+            <div class="scanner-title-row">
+              <div class="scanner-title-group">
+                <span class="scanner-icon">&#9878;</span>
+                <div>
+                  <h2 class="scanner-title">AI Stock Opportunity Scanner</h2>
+                  <p class="scanner-subtitle">Real-time AI-scored equities &middot; {{ stock_rows | length }} tracked</p>
+                </div>
+              </div>
+              <div class="scanner-filters">
+                <select id="sectorFilter" title="Sector">
+                  <option value="">Sector</option>
+                  {% for sector in stock_sectors %}<option value="{{ sector }}">{{ sector }}</option>{% endfor %}
+                </select>
+                <select id="signalFilter" title="Signal">
+                  <option value="">Signal</option>
+                  {% for label in stock_signal_labels %}<option value="{{ label }}">{{ label }}</option>{% endfor %}
+                </select>
+                <select id="riskFilter" title="Risk">
+                  <option value="">Risk</option>
+                  {% for risk in stock_risk_levels %}<option value="{{ risk }}">{{ risk }}</option>{% endfor %}
+                </select>
+                <select id="horizonFilter" title="Horizon">
+                  <option value="">Horizon</option>
+                  {% for horizon in stock_time_horizons %}<option value="{{ horizon }}">{{ horizon }}</option>{% endfor %}
+                </select>
+                <select id="statusFilter" title="Status">
+                  <option value="">Status</option>
+                  {% for status in stock_statuses %}<option value="{{ status }}">{{ status }}</option>{% endfor %}
+                </select>
+                <select id="stockSortBy" title="Sort by">
+                  <option value="rank_asc">Best opportunities</option>
+                  <option value="confidence_desc">Highest confidence</option>
+                  <option value="evidence_desc">Most evidence</option>
+                  <option value="momentum_desc">Strongest momentum</option>
+                  <option value="delta_desc">Biggest Δ score</option>
+                  <option value="headline_asc">Most recent headline</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {% if stock_rows %}
+          <div class="scanner-table-wrap">
+            <table class="scanner-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Ticker</th>
+                  <th>Sector</th>
+                  <th>Price</th>
+                  <th>1D</th>
+                  <th title="Model score 0–1">Score</th>
+                  <th>Confidence</th>
+                  <th>Risk</th>
+                  <th>Status</th>
+                  <th>AI Summary</th>
+                </tr>
+              </thead>
+              <tbody id="stocksTableBody">
+                {% for row in stock_rows %}
+                <tr
+                  class="stock-row"
+                  data-sector="{{ row.sector }}"
+                  data-signal="{{ row.signalLabel }}"
+                  data-risk="{{ row.riskLevel }}"
+                  data-horizon="{{ row.timeHorizon }}"
+                  data-status="{{ row.status }}"
+                  data-rank="{{ row.opportunityRank }}"
+                  data-confidence="{{ row.confidence }}"
+                  data-evidence="{{ row.evidence_count }}"
+                  data-momentum="{{ row.momentum }}"
+                  data-delta="{{ row.score_delta if row.score_delta is not none else -999 }}"
+                  data-headline="{{ row.last_headline_minutes }}"
+                >
+                  <td class="td-toggle">
+                    <button class="row-toggle" data-target="detail-{{ row.ticker }}" aria-expanded="false">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </td>
+                  <td class="td-ticker">
+                    <strong>{{ row.ticker }}</strong>
+                    <span class="signal-badge {{ row.signalColor }}">{{ row.signalLabel }}</span>
+                  </td>
+                  <td class="td-sector">{{ row.sector }}</td>
+                  <td class="td-price">${{ "%.2f"|format(row.price) }}</td>
+                  <td class="td-change {% if row.day_change > 0 %}up{% elif row.day_change < 0 %}down{% endif %}">
+                    {{ "%+.2f"|format(row.day_change * 100) }}%
+                  </td>
+                  <td class="td-score">
+                    <div class="score-cell">
+                      <span>{{ "%.3f"|format(row.score) }}</span>
+                      <div class="score-micro-bar"><div class="score-micro-fill" style="width:{{ (row.score * 100)|round(0,'floor') }}%"></div></div>
+                    </div>
+                  </td>
+                  <td class="td-confidence">{{ "%.2f"|format(row.confidence) }}</td>
+                  <td class="td-risk"><span class="pill {{ row.riskColor }}">{{ row.riskLevel }}</span></td>
+                  <td class="td-status"><span class="pill {{ row.statusColor }}">{{ row.status }}</span></td>
+                  <td class="td-summary">{{ row.aiSummary }}</td>
+                </tr>
+                <tr id="detail-{{ row.ticker }}" class="detail-row hidden">
+                  <td colspan="10">
+                    <div class="detail-drawer">
+                      <div class="detail-cards">
+                        <div class="detail-card">
+                          <div class="detail-card-label">Overview</div>
+                          <strong>{{ row.ticker }} — {{ row.company }}</strong>
+                          <p>{{ row.signalLabel }} &middot; {{ row.status }} &middot; {{ row.riskLevel }} risk &middot; {{ row.timeHorizon }}</p>
+                          <p>Score <strong>{{ "%.3f"|format(row.score) }}</strong> &middot; Confidence <strong>{{ "%.3f"|format(row.confidence) }}</strong> &middot; Momentum <strong>{{ "%.3f"|format(row.momentum) }}</strong>{% if row.score_delta is not none %} &middot; Δ <span class="{% if row.score_delta > 0 %}up{% elif row.score_delta < 0 %}down{% endif %}">{{ "%+.3f"|format(row.score_delta) }}</span>{% endif %}</p>
+                          <p class="detail-note">{{ row.recommendationNote }}</p>
+                        </div>
+                        <div class="detail-card">
+                          <div class="detail-card-label">Why Now</div>
+                          <ul>{% for bullet in row.whyNowBullets %}<li>{{ bullet }}</li>{% endfor %}</ul>
+                          <p class="detail-meta">{{ row.evidence_count }} evidence items &middot; {{ row.last_headline_age }}</p>
+                        </div>
+                        <div class="detail-card">
+                          <div class="detail-card-label">Linked Headlines</div>
+                          {% if row.linked_headlines %}
+                          <ul>{% for h in row.linked_headlines %}<li>{{ h }}</li>{% endfor %}</ul>
+                          {% else %}
+                          <p class="detail-meta">No linked headlines yet.</p>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="scanner-empty">
+            <p>No stock scores yet. Hit <strong>Refresh Intelligence</strong> to populate.</p>
+          </div>
+          {% endif %}
+        </section>
+
+        <section id="industry" class="panel">
+          <h2>Industry-to-Stock Map</h2>
+          {% if industry_map %}
+          <div class="industry-grid">
+            {% for item in industry_map %}
+            <article class="industry-card">
+              <h3>{{ item.sector }}</h3>
+              <p class="chip-row">{{ item.tickers | join(", ") }}</p>
+              <div class="bar-track">
+                <div class="bar-fill sector-bar" style="width: {{ (item.avg_score * 100)|round(0, 'floor') }}%"></div>
+              </div>
+              <small>Average sector score: {{ "%.3f"|format(item.avg_score) }}</small>
+            </article>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p>No sector mapping yet.</p>
+          {% endif %}
+        </section>
+
+        <section class="panel">
+          <h2>AI Stock Market Dashboard (Cross-Sector)</h2>
+          {% if stock_market_rows %}
+          <table>
+            <thead>
+              <tr>
+                <th>Sector</th>
+                <th>Ticker</th>
+                <th>Price</th>
+                <th>1D</th>
+                <th>AI Revenue Share</th>
+                <th>GPU Shipments</th>
+                <th>AI Datacenter Growth</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in stock_market_rows %}
+              <tr>
+                <td>{{ row.sector }}</td>
+                <td>{{ row.ticker }}</td>
+                <td>${{ "%.2f"|format(row.price) }}</td>
+                <td class="{% if row.day_change > 0 %}up{% elif row.day_change < 0 %}down{% endif %}">
+                  {{ "%+.2f"|format(row.day_change * 100) }}%
+                </td>
+                <td>
+                  {{ "%.1f"|format(row.ai_revenue_share * 100) }}%
+                  <div class="bar-track compact"><div class="bar-fill rev-bar" style="width: {{ (row.ai_revenue_share * 100)|round(0, 'floor') }}%"></div></div>
+                </td>
+                <td>
+                  {{ "%.1f"|format(row.gpu_shipments * 100) }}%
+                  <div class="bar-track compact"><div class="bar-fill gpu-bar" style="width: {{ (row.gpu_shipments * 100)|round(0, 'floor') }}%"></div></div>
+                </td>
+                <td>
+                  {{ "%.1f"|format(row.datacenter_growth * 100) }}%
+                  <div class="bar-track compact"><div class="bar-fill dc-bar" style="width: {{ (row.datacenter_growth * 100)|round(0, 'floor') }}%"></div></div>
+                </td>
+                <td>{{ "%.3f"|format(row.score) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p>No stock market data yet. Use Refresh Intelligence.</p>
+          {% endif %}
+        </section>
+
+        <section class="panel-grid">
+          <section id="funding" class="panel">
+            <h2>AI Startup & Funding Tracker</h2>
+            {% if startup_funding %}
+            <ul class="article-list">
+              {% for item in startup_funding %}
+              <li>
+                <a href="{{ item.url }}" target="_blank" rel="noreferrer">{{ item.startup }}</a>
+                <p>{{ item.stage }} | {{ item.amount }}</p>
+                <small>{{ item.source }} | {{ item.published_at }}</small>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p>No startup funding items detected yet.</p>
+            {% endif %}
+          </section>
+
+          <section id="launches" class="panel">
+            <h2>AI Product Launch Tracker</h2>
+            {% if product_launches %}
+            <ul class="article-list">
+              {% for item in product_launches %}
+              <li>
+                <a href="{{ item.url }}" target="_blank" rel="noreferrer">{{ item.product }}</a>
+                <p>Company / source: {{ item.company_hint }}</p>
+                <small>{{ item.source }} | {{ item.published_at }}</small>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p>No product launches detected yet.</p>
+            {% endif %}
+          </section>
+        </section>
+
+        <section id="research" class="panel">
+          <h2>AI Research Dashboard</h2>
+          {% if research_items %}
+          <ul class="article-list">
+            {% for item in research_items %}
+            <li>
+              <a href="{{ item.url }}" target="_blank" rel="noreferrer">{{ item.title }}</a>
+              <small>{{ item.source }} | {{ item.published_at }}</small>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p>No research items detected yet.</p>
+          {% endif %}
+        </section>
+      </main>
+    </div>
+    <script>
+      const button = document.getElementById("refreshButton");
+      const stocksBody = document.getElementById("stocksTableBody");
+      const sectorFilter = document.getElementById("sectorFilter");
+      const signalFilter = document.getElementById("signalFilter");
+      const riskFilter = document.getElementById("riskFilter");
+      const horizonFilter = document.getElementById("horizonFilter");
+      const statusFilter = document.getElementById("statusFilter");
+      const stockSortBy = document.getElementById("stockSortBy");
+      const sp500HeroSearchInput = document.getElementById("sp500HeroSearchInput");
+
+      function getSortValue(row, key) {
+        const value = row.dataset[key];
+        const parsed = Number(value);
+        return Number.isNaN(parsed) ? -999 : parsed;
+      }
+
+      function applyStocksTableView() {
+        if (!stocksBody || !stockSortBy) return;
+        const selectedSector = sectorFilter.value;
+        const selectedSignal = signalFilter.value;
+        const selectedRisk = riskFilter.value;
+        const selectedHorizon = horizonFilter.value;
+        const selectedStatus = statusFilter.value;
+        const [metric, direction] = stockSortBy.value.split("_");
+        const primaryRows = Array.from(stocksBody.querySelectorAll("tr.stock-row"));
+        primaryRows.sort((a, b) => {
+          const key = metric;
+          const aValue = getSortValue(a, key);
+          const bValue = getSortValue(b, key);
+          return direction === "asc" ? aValue - bValue : bValue - aValue;
+        });
+        primaryRows.forEach((row) => {
+          const detail = row.nextElementSibling;
+          const show =
+            (!selectedSector || row.dataset.sector === selectedSector) &&
+            (!selectedSignal || row.dataset.signal === selectedSignal) &&
+            (!selectedRisk || row.dataset.risk === selectedRisk) &&
+            (!selectedHorizon || row.dataset.horizon === selectedHorizon) &&
+            (!selectedStatus || row.dataset.status === selectedStatus);
+          row.style.display = show ? "" : "none";
+          if (detail && detail.classList.contains("detail-row")) {
+            detail.style.display = show ? "" : "none";
+            if (!show) detail.classList.add("hidden");
+          }
+          stocksBody.appendChild(row);
+          if (detail && detail.classList.contains("detail-row")) {
+            stocksBody.appendChild(detail);
+          }
+        });
+      }
+
+      if (sectorFilter) sectorFilter.addEventListener("change", applyStocksTableView);
+      if (signalFilter) signalFilter.addEventListener("change", applyStocksTableView);
+      if (riskFilter) riskFilter.addEventListener("change", applyStocksTableView);
+      if (horizonFilter) horizonFilter.addEventListener("change", applyStocksTableView);
+      if (statusFilter) statusFilter.addEventListener("change", applyStocksTableView);
+      if (stockSortBy) stockSortBy.addEventListener("change", applyStocksTableView);
+      document.querySelectorAll(".row-toggle").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = document.getElementById(btn.dataset.target);
+          if (!target) return;
+          const hidden = target.classList.contains("hidden");
+          target.classList.toggle("hidden");
+          btn.setAttribute("aria-expanded", hidden ? "true" : "false");
+        });
+      });
+      applyStocksTableView();
+
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        button.textContent = "Refreshing...";
+        try {
+          await fetch("/refresh", { method: "POST" });
+          window.location.reload();
+        } finally {
+          button.disabled = false;
+          button.textContent = "Refresh now";
+        }
+      });
+
+      if (sp500HeroSearchInput) {
+        sp500HeroSearchInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            const term = sp500HeroSearchInput.value.trim();
+            if (!term) return;
+            // Reuse existing opinion endpoint; open in a new tab for now.
+            const url = `/api/sp500/opinion?ticker=${encodeURIComponent(term)}`;
+            window.open(url, "_blank");
+          }
+        });
+      }
+
+      // S&P 500 search bar removed
+    </script>
+  </body>
+</html>
