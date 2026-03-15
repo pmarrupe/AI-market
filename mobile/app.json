@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "AI Market",
+    "slug": "ai-market",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "aimarket",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.aimarket.app"
+    },
+    "android": {
+      "package": "com.aimarket.app"
+    },
+    "plugins": ["expo-router"]
+  }
+}

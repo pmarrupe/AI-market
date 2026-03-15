@@ -646,6 +646,19 @@ def dashboard(request: Request):
     )
 
 
-# Serve React static assets when the build exists
+# Serve React static assets, PWA manifest, and icons when the build exists
 if REACT_BUILD_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(REACT_BUILD_DIR / "assets")), name="react-assets")
+    icons_dir = REACT_BUILD_DIR / "icons"
+    if icons_dir.exists():
+        app.mount("/icons", StaticFiles(directory=str(icons_dir)), name="pwa-icons")
+
+
+@app.get("/manifest.webmanifest")
+def manifest():
+    """Serve PWA manifest for Add to Home Screen (no-cost app install)."""
+    path = REACT_BUILD_DIR / "manifest.webmanifest"
+    if path.exists():
+        return FileResponse(path, media_type="application/manifest+json")
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"error": "not found"}, status_code=404)
