@@ -846,6 +846,10 @@ button:disabled {
 .scanner-table .detail-row td {
   padding: 0;
   border-bottom: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  vertical-align: top;
 }
 
 .scanner-section .detail-drawer {
