@@ -6,6 +6,8 @@ from io import StringIO
 
 import httpx
 
+from app.services.price_forecast import fetch_finnhub_daily_series
+
 
 @dataclass(frozen=True)
 class MarketSnapshot:
@@ -73,12 +75,64 @@ def _compute_from_rows(rows: list[dict[str, str]]) -> MarketSnapshot | None:
     )
 
 
-def fetch_market_snapshots(tickers: list[str]) -> dict[str, MarketSnapshot]:
+def _compute_from_closes(closes: list[float], volumes: list[float] | None = None) -> MarketSnapshot | None:
+    if len(closes) < 6:
+        return None
+    vols = volumes if volumes and len(volumes) == len(closes) else [0.0] * len(closes)
+    latest = closes[-1]
+    prev_day = closes[-2]
+    prior = closes[-6]
+    if prior <= 0:
+        return None
+    day_change = round((latest - prev_day) / prev_day, 3) if prev_day > 0 else 0.0
+    momentum = round((latest - prior) / prior, 3)
+    recent_v = [v for v in vols[-10:] if v > 0]
+    if recent_v:
+        avg_vol = sum(recent_v) / len(recent_v)
+        liquidity = round(min(1.0, avg_vol / 30_000_000), 3)
+    else:
+        liquidity = 0.45
+    dislocation = abs(momentum)
+    valuation_sanity = round(max(0.0, 1.0 - (dislocation * 2.5)), 3)
+    return MarketSnapshot(
+        last_price=round(latest, 2),
+        day_change=day_change,
+        momentum_5d=momentum,
+        liquidity_score=max(0.35, liquidity),
+        valuation_sanity=valuation_sanity,
+    )
+
+
+def fetch_market_snapshots(
+    tickers: list[str],
+    *,
+    finnhub_enabled: bool = False,
+    finnhub_api_key: str = "",
+) -> dict[str, MarketSnapshot]:
+    """
+    Prefer Finnhub daily candles when enabled + API key; otherwise Stooq CSV.
+    """
     out: dict[str, MarketSnapshot] = {}
-    with httpx.Client(timeout=8.0, follow_redirects=True) as client:
+    use_fh = bool(finnhub_enabled and finnhub_api_key.strip())
+    with httpx.Client(timeout=12.0, follow_redirects=True) as client:
         for ticker in tickers:
+            sym = ticker.strip().upper()
             try:
-                symbol = _stooq_symbol(ticker)
+                if use_fh:
+                    series = fetch_finnhub_daily_series(
+                        sym,
+                        finnhub_api_key.strip(),
+                        client=client,
+                        lookback_days=120,
+                        min_closes=6,
+                    )
+                    snapshot = (
+                        _compute_from_closes(series[0], series[1]) if series else None
+                    )
+                    if snapshot:
+                        out[ticker] = snapshot
+                        continue
+                symbol = _stooq_symbol(sym)
                 resp = client.get(f"https://stooq.com/q/d/l/?s={symbol}&i=d")
                 resp.raise_for_status()
                 parsed = list(csv.DictReader(StringIO(resp.text)))

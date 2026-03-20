@@ -6,6 +6,12 @@ export async function fetchDashboard() {
   return res.json();
 }
 
+export async function fetchWatchlistBriefing() {
+  const res = await fetch(`${BASE}/api/watchlist-briefing`);
+  if (!res.ok) throw new Error(`Watchlist briefing fetch failed: ${res.status}`);
+  return res.json();
+}
+
 export async function refreshIntelligence() {
   const res = await fetch(`${BASE}/refresh`, { method: "POST" });
   if (!res.ok) throw new Error(`Refresh failed: ${res.status}`);
@@ -25,5 +31,17 @@ export async function getSP500Opinion(ticker) {
     `${BASE}/api/sp500/opinion?ticker=${encodeURIComponent(ticker)}`
   );
   if (!res.ok) throw new Error(`Opinion fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchPriceForecast(ticker) {
+  const res = await fetch(
+    `${BASE}/api/price-forecast?ticker=${encodeURIComponent(ticker)}`
+  );
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    const msg = errBody.error || `Forecast failed: ${res.status}`;
+    throw new Error(msg);
+  }
   return res.json();
 }

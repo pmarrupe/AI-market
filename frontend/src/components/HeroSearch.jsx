@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { searchSP500, getSP500Opinion } from "../api";
+import { searchSP500, getSP500Opinion, fetchPriceForecast } from "../api";
 
 export default function HeroSearch() {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [opinion, setOpinion] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [forecast, setForecast] = useState(null);
+  const [forecastLoading, setForecastLoading] = useState(false);
+  const [forecastError, setForecastError] = useState(null);
   const debounceRef = useRef(null);
   const wrapRef = useRef(null);
 
@@ -39,15 +42,30 @@ export default function HeroSearch() {
   const handleSelect = async (ticker) => {
     setQuery(ticker);
     setSuggestions([]);
+    setForecast(null);
+    setForecastError(null);
     setLoading(true);
     setOpinion(null);
+    let loaded = null;
     try {
-      const result = await getSP500Opinion(ticker);
-      setOpinion(result);
+      loaded = await getSP500Opinion(ticker);
+      setOpinion(loaded);
     } catch {
       setOpinion({ error: "Failed to load opinion" });
     } finally {
       setLoading(false);
+    }
+    if (!loaded || loaded.error) return;
+    setForecastLoading(true);
+    try {
+      const fc = await fetchPriceForecast(ticker);
+      setForecast(fc);
+      setForecastError(null);
+    } catch (e) {
+      setForecast(null);
+      setForecastError(e.message || "Price outlook unavailable");
+    } finally {
+      setForecastLoading(false);
     }
   };
 
@@ -190,6 +208,58 @@ export default function HeroSearch() {
               </ul>
             </div>
           )}
+
+          <div className="price-forecast-block">
+            <span className="opinion-section-label">Price outlook (Finnhub history)</span>
+            <p className="price-forecast-disclaimer">
+              Empirical only — not a buy/sell recommendation. Uses past daily returns; option 1 = P(up),
+              option 2 = median-implied price.
+            </p>
+            {forecastLoading && (
+              <p className="price-forecast-loading">Loading Finnhub outlook…</p>
+            )}
+            {forecastError && !forecastLoading && (
+              <p className="price-forecast-error">{forecastError}</p>
+            )}
+            {forecast && !forecastLoading && (
+              <>
+                <p className="price-forecast-meta">
+                  Last close (Finnhub): <strong>${forecast.last_close?.toFixed(2)}</strong>
+                </p>
+                <div className="price-forecast-table-wrap">
+                  <table className="price-forecast-table">
+                    <thead>
+                      <tr>
+                        <th>Horizon</th>
+                        <th>P(up)</th>
+                        <th>Median-implied price</th>
+                        <th>Confidence</th>
+                        <th>Note</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(forecast.horizons || []).map((h) => (
+                        <tr key={h.horizon_trading_days}>
+                          <td>{h.horizon_trading_days} trading days</td>
+                          <td>
+                            {h.prob_up != null ? `${(h.prob_up * 100).toFixed(1)}%` : "—"}
+                          </td>
+                          <td>
+                            {h.predicted_price != null
+                              ? `$${Number(h.predicted_price).toFixed(2)}`
+                              : "—"}
+                          </td>
+                          <td>{h.confidence != null ? h.confidence.toFixed(2) : "—"}</td>
+                          <td className="price-forecast-note">{h.outlook_label || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="price-forecast-footnote">{forecast.methodology}</p>
+              </>
+            )}
+          </div>
         </div>
       )}
 

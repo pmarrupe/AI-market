@@ -547,6 +547,77 @@ button:disabled {
   margin-top: 12px;
 }
 
+.price-forecast-block {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(79, 125, 255, 0.12);
+}
+
+.price-forecast-disclaimer {
+  font-size: 11px;
+  color: #6b7daa;
+  line-height: 1.45;
+  margin: 0 0 10px;
+}
+
+.price-forecast-loading {
+  font-size: 12px;
+  color: #8aa8e8;
+  margin: 0;
+}
+
+.price-forecast-error {
+  font-size: 12px;
+  color: #f0ab83;
+  margin: 0;
+}
+
+.price-forecast-meta {
+  font-size: 12px;
+  color: #a8b8e0;
+  margin: 0 0 8px;
+}
+
+.price-forecast-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 8px;
+}
+
+.price-forecast-table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.price-forecast-table th,
+.price-forecast-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.price-forecast-table th {
+  color: #5e72a3;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 9px;
+}
+
+.price-forecast-note {
+  color: #8e9ec8;
+  max-width: 200px;
+  word-wrap: break-word;
+}
+
+.price-forecast-footnote {
+  font-size: 10px;
+  color: #5e72a3;
+  line-height: 1.4;
+  margin: 0;
+}
+
 .opinion-error {
   border-color: rgba(255, 128, 157, 0.3);
   color: #ff9db8;
@@ -900,6 +971,48 @@ button:disabled {
   padding: 40px 20px;
   text-align: center;
   color: #6b7daa;
+}
+
+.watchlist-briefing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.watchlist-briefing-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #bcc9ee;
+}
+
+.watchlist-briefing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.watchlist-briefing-ticker {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #e8f0ff;
+}
+
+.watchlist-briefing-text {
+  margin: 4px 0;
+}
+
+.watchlist-briefing-risks {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 11px;
+  color: #ffbfbf;
 }
 
 /* ── Up / Down Colors ──────────────────────────────────────── */

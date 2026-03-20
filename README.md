@@ -75,8 +75,8 @@ Set values in `.env`:
 - `DYNAMIC_UNIVERSE_MIN_FRESH`: Minimum fresh tickers to inject in explore mode
 - `NEWSAPI_ENABLED`: Enable NewsAPI connector for broader article coverage
 - `NEWSAPI_API_KEY`: NewsAPI key when connector is enabled
-- `FINNHUB_ENABLED`: Enable Finnhub news connector for market headlines
-- `FINNHUB_API_KEY`: Finnhub API key when connector is enabled
+- `FINNHUB_ENABLED`: Enable Finnhub (news + daily price candles when key is set)
+- `FINNHUB_API_KEY`: Finnhub API key — used for headlines and for market snapshots / price outlook when enabled
 
 ## API endpoints
 
@@ -89,6 +89,7 @@ Set values in `.env`:
 - `POST /refresh` - fetch, summarize, and score now
 - `GET /api/audit` - latest recommendation audit records
 - `GET /api/source-health` - recent feed/source health checks
+- `GET /api/price-forecast?ticker=NVDA` - empirical 10/20/30 **trading-day** outlook from Finnhub daily history: historical P(up), median-implied price, and a heuristic confidence (requires `FINNHUB_ENABLED` + `FINNHUB_API_KEY`; not investment advice)
 
 ## Notes
 

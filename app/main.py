@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -23,6 +23,7 @@ from app.services.dashboards import (
 from app.services.sp500 import search_sp500, get_sp500_entry
 from app.services.llm import llm_json_completion
 from app.services.market_data import fetch_market_snapshots
+from app.services.price_forecast import build_price_forecast, fetch_finnhub_daily_closes
 from app.services.opportunity_signals import build_opportunity_view
 from app.services.scoring import llm_enhance_scores, score_stocks
 from app.services.summarizer import summarize_batch
@@ -200,7 +201,11 @@ def refresh_data() -> dict[str, object]:
         )
     else:
         tickers = settings.default_tickers
-    market = fetch_market_snapshots(tickers)
+    market = fetch_market_snapshots(
+        tickers,
+        finnhub_enabled=settings.finnhub_enabled,
+        finnhub_api_key=settings.finnhub_api_key,
+    )
     scores = score_stocks(
         tickers,
         summarized,
@@ -271,6 +276,141 @@ def api_alerts():
     )
 
 
+@app.get("/api/watchlist-briefing")
+def api_watchlist_briefing():
+    """
+    AI-generated briefing for the configured watchlist tickers.
+
+    Uses the existing opportunity view as structured input to the LLM and
+    returns a compact summary plus per-ticker notes.
+    """
+    watchlist = [ticker.upper() for ticker in settings.watchlist_tickers]
+    if not watchlist:
+        return {
+            "tickers": [],
+            "summary": "No watchlist configured yet.",
+            "items": [],
+            "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        }
+
+    article_pool = store.get_articles(limit=180)
+    stocks = store.get_stock_scores(limit=100)
+    previous_scores = store.get_previous_score_map()
+    opportunity = build_opportunity_view(
+        stocks=stocks,
+        articles=article_pool,
+        previous_scores=previous_scores,
+        stock_market_rows=ai_stock_market_dashboard(stocks),
+    )
+
+    rows = [
+        row
+        for row in opportunity["rows"]
+        if row.get("ticker", "").upper() in watchlist
+    ]
+
+    def _fallback_response() -> dict[str, object]:
+        """Deterministic fallback if there is no LLM or it fails."""
+        if not rows:
+            return {
+                "tickers": watchlist,
+                "summary": "No current scores for watchlist tickers in the active universe.",
+                "items": [],
+                "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            }
+        sorted_rows = sorted(rows, key=lambda r: r.get("opportunityRank", 9999))
+        top = sorted_rows[: min(3, len(sorted_rows))]
+        summary = (
+            "Watchlist overview based on current scores and signals. "
+            f"Top names today: {', '.join(r['ticker'] for r in top)}."
+        )
+        items = []
+        for row in sorted_rows:
+            items.append(
+                {
+                    "ticker": row["ticker"],
+                    "stance": row.get("status") or row.get("signalLabel") or "Watchlist",
+                    "rationale": row.get("recommendationNote") or row.get("aiSummary") or "",
+                    "key_risks": [],
+                }
+            )
+        return {
+            "tickers": watchlist,
+            "summary": summary,
+            "items": items,
+            "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        }
+
+    if not settings.llm_enabled or not settings.llm_api_key:
+        return _fallback_response()
+
+    system_prompt = (
+        "You are a buy-side analyst creating a concise watchlist briefing for a portfolio owner. "
+        "You will receive structured JSON rows for several tickers. "
+        "Return strict JSON with keys: summary (string) and items (array). "
+        "Each item must be {ticker, stance, rationale, key_risks}. "
+        "stance is a short label like 'Actionable', 'Watch', or 'High risk'. "
+        "rationale is 2-3 short sentences grounded only in the provided data. "
+        "key_risks is an array of 1-3 short bullet phrases, or [] if nothing material."
+    )
+
+    user_payload = {
+        "watchlist_tickers": watchlist,
+        "rows": rows,
+    }
+    user_prompt = (
+        "User watchlist tickers:\n"
+        f"{', '.join(watchlist)}\n\n"
+        "Structured data for each ticker (JSON):\n"
+        f"{json.dumps(user_payload, default=str)}\n\n"
+        "Generate a concise briefing focused on near-term opportunity and risk."
+    )
+
+    llm_out = llm_json_completion(
+        enabled=settings.llm_enabled,
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        model=settings.llm_model,
+        temperature=settings.llm_temperature,
+        max_tokens=min(settings.llm_max_tokens, 800),
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+    )
+
+    if not llm_out:
+        return _fallback_response()
+
+    summary = str(llm_out.get("summary") or "").strip()
+    items = llm_out.get("items") or []
+    if not summary or not isinstance(items, list):
+        return _fallback_response()
+
+    normalized_items: list[dict[str, object]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        ticker = str(item.get("ticker") or "").upper()
+        if not ticker:
+            continue
+        normalized_items.append(
+            {
+                "ticker": ticker,
+                "stance": str(item.get("stance") or "").strip() or "Watchlist",
+                "rationale": str(item.get("rationale") or "").strip(),
+                "key_risks": item.get("key_risks") if isinstance(item.get("key_risks"), list) else [],
+            }
+        )
+    if not normalized_items:
+        return _fallback_response()
+
+    return {
+        "tickers": watchlist,
+        "summary": summary,
+        "items": normalized_items,
+        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+    }
+
+
 @app.get("/api/audit")
 def api_audit(limit: int = 100):
     return store.get_recommendation_audit(limit=limit)
@@ -318,6 +458,58 @@ def api_top_stocks(limit: int = 8):
     ]
 
 
+@app.get("/api/price-forecast")
+def api_price_forecast(ticker: str):
+    """
+    Empirical forward outlook from Finnhub daily history: P(up) and median-implied price
+    at 10 / 20 / 30 trading-day horizons. Not investment advice.
+    """
+    sym = (ticker or "").strip().upper()
+    if not sym:
+        return JSONResponse({"error": "ticker is required"}, status_code=400)
+    if not settings.finnhub_enabled or not settings.finnhub_api_key.strip():
+        return JSONResponse(
+            {
+                "error": "Finnhub required: set FINNHUB_ENABLED=true and FINNHUB_API_KEY in .env",
+            },
+            status_code=503,
+        )
+    closes = fetch_finnhub_daily_closes(sym, settings.finnhub_api_key.strip())
+    if not closes:
+        return JSONResponse(
+            {
+                "error": (
+                    "No usable daily history from Finnhub for this symbol. "
+                    "Use a US listing symbol (e.g. NVDA, MSFT)."
+                ),
+            },
+            status_code=404,
+        )
+    body = build_price_forecast(closes)
+    # Optional simple "stance" from prob_up + confidence (still not a buy recommendation)
+    enriched_horizons = []
+    for h in body.get("horizons", []):
+        row = dict(h)
+        pu = row.get("prob_up")
+        conf = row.get("confidence") or 0.0
+        if pu is not None and conf >= 0.55 and pu >= 0.58:
+            row["outlook_label"] = "historically skewed positive (weak signal)"
+        elif pu is not None and conf >= 0.55 and pu <= 0.42:
+            row["outlook_label"] = "historically skewed negative (weak signal)"
+        else:
+            row["outlook_label"] = "no strong historical skew"
+        enriched_horizons.append(row)
+    body["horizons"] = enriched_horizons
+    return {
+        "ticker": sym,
+        "disclaimer": (
+            "Research only — not investment advice. Based on past daily returns; "
+            "does not predict actual future prices."
+        ),
+        **body,
+    }
+
+
 @app.get("/api/sp500/search")
 def api_sp500_search(q: str, limit: int = 8):
     return search_sp500(q, limit=limit)
@@ -340,7 +532,11 @@ def api_sp500_opinion(ticker: str):
 
     if not score:
         try:
-            market = fetch_market_snapshots([upper])
+            market = fetch_market_snapshots(
+                [upper],
+                finnhub_enabled=settings.finnhub_enabled,
+                finnhub_api_key=settings.finnhub_api_key,
+            )
         except Exception:
             market = {}
         scored = score_stocks([upper], articles, market, min_confidence=0.0)
@@ -660,5 +856,4 @@ def manifest():
     path = REACT_BUILD_DIR / "manifest.webmanifest"
     if path.exists():
         return FileResponse(path, media_type="application/manifest+json")
-    from fastapi.responses import JSONResponse
     return JSONResponse({"error": "not found"}, status_code=404)
