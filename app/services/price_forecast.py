@@ -14,8 +14,10 @@ import httpx
 
 FINNHUB_CANDLE_URL = "https://finnhub.io/api/v1/stock/candle"
 
-# Need enough bars for 30-day forward windows + statistics
+# Need enough bars for 30-day forward windows + statistics (default for snapshots elsewhere)
 MIN_CLOSES = 45
+# Price forecast can run with a bit less history (still meaningful 30d windows)
+MIN_CLOSES_FORECAST = 36
 DEFAULT_LOOKBACK_DAYS = 550  # calendar days → ~390 trading days
 
 
@@ -31,33 +33,70 @@ def fetch_finnhub_daily_series(
     Return (closes, volumes) oldest → newest, aligned.
     None if Finnhub error or insufficient data.
     """
+    series, _detail = fetch_finnhub_daily_series_with_detail(
+        symbol,
+        api_key,
+        client=client,
+        lookback_days=lookback_days,
+        min_closes=min_closes,
+    )
+    return series
+
+
+def fetch_finnhub_daily_series_with_detail(
+    symbol: str,
+    api_key: str,
+    *,
+    client: httpx.Client | None = None,
+    lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+    min_closes: int = MIN_CLOSES,
+) -> tuple[tuple[list[float], list[float]] | None, str]:
+    """
+    Like fetch_finnhub_daily_series but returns a human-readable reason when data is missing.
+    Second value is "" on success.
+    """
     sym = symbol.strip().upper()
-    if not sym or not api_key:
-        return None
+    if not sym:
+        return None, "missing symbol"
+    if not api_key or not api_key.strip():
+        return None, "missing Finnhub API key"
 
     to_ts = int(time.time())
     from_ts = to_ts - lookback_days * 86400
 
-    def _do_fetch(c: httpx.Client) -> tuple[list[float], list[float]] | None:
-        resp = c.get(
-            FINNHUB_CANDLE_URL,
-            params={
-                "symbol": sym,
-                "resolution": "D",
-                "from": from_ts,
-                "to": to_ts,
-                "token": api_key,
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        if data.get("s") != "ok":
-            return None
+    def _do_fetch(c: httpx.Client) -> tuple[tuple[list[float], list[float]] | None, str]:
+        try:
+            resp = c.get(
+                FINNHUB_CANDLE_URL,
+                params={
+                    "symbol": sym,
+                    "resolution": "D",
+                    "from": from_ts,
+                    "to": to_ts,
+                    "token": api_key.strip(),
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.HTTPStatusError as exc:
+            return None, f"Finnhub HTTP {exc.response.status_code}: {exc.response.text[:200]!s}"
+        except Exception as exc:  # noqa: BLE001
+            return None, f"Finnhub request failed: {exc!s}"
+
+        fh_status = data.get("s")
+        if fh_status == "no_data":
+            return None, (
+                "Finnhub returned no_data (unknown symbol, delisted, or candles not available on your plan). "
+                "Free tier sometimes omits candle history — try Stooq fallback or verify the key at finnhub.io."
+            )
+        if fh_status != "ok":
+            return None, f"Finnhub status={fh_status!r}"
+
         ts_list = data.get("t") or []
         closes_raw = data.get("c") or []
         vols_raw = data.get("v") or []
         if not ts_list or not closes_raw or len(ts_list) != len(closes_raw):
-            return None
+            return None, "Finnhub response missing time/close arrays"
         if len(vols_raw) != len(closes_raw):
             vols_raw = [0.0] * len(closes_raw)
         pairs = sorted(zip(ts_list, closes_raw, vols_raw), key=lambda x: x[0])
@@ -76,7 +115,9 @@ def fetch_finnhub_daily_series(
                 vol = 0.0
             out_c.append(close)
             out_v.append(max(0.0, vol))
-        return (out_c, out_v) if len(out_c) >= min_closes else None
+        if len(out_c) < min_closes:
+            return None, f"only {len(out_c)} usable daily closes (need at least {min_closes})"
+        return (out_c, out_v), ""
 
     if client is not None:
         return _do_fetch(client)
@@ -90,9 +131,14 @@ def fetch_finnhub_daily_closes(
     *,
     client: httpx.Client | None = None,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+    min_closes: int = MIN_CLOSES,
 ) -> list[float] | None:
-    series = fetch_finnhub_daily_series(
-        symbol, api_key, client=client, lookback_days=lookback_days
+    series, _detail = fetch_finnhub_daily_series_with_detail(
+        symbol,
+        api_key,
+        client=client,
+        lookback_days=lookback_days,
+        min_closes=min_closes,
     )
     return series[0] if series else None
 

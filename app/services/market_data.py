@@ -22,20 +22,54 @@ def _stooq_symbol(ticker: str) -> str:
     return f"{ticker.lower()}.us"
 
 
-def _fallback_snapshot(ticker: str) -> MarketSnapshot:
-    seed = sum(ord(c) for c in ticker)
-    last_price = round(80 + (seed % 420) + ((seed % 17) / 10), 2)
-    day_change = round(((seed % 20) - 10) / 100, 3)
-    momentum = round(((seed % 30) - 15) / 100, 3)
-    liquidity = round(0.35 + ((seed % 50) / 100), 3)
-    dislocation = abs(momentum)
-    valuation_sanity = round(max(0.0, 1.0 - (dislocation * 3)), 3)
+def fetch_stooq_daily_closes_for_forecast(
+    ticker: str,
+    client: httpx.Client | None = None,
+    *,
+    min_closes: int = 36,
+) -> list[float] | None:
+    """
+    Daily closes oldest → newest from Stooq CSV (fallback when Finnhub candles fail).
+    """
+    sym = ticker.strip().upper()
+    if not sym:
+        return None
+
+    def _run(c: httpx.Client) -> list[float] | None:
+        try:
+            symbol = _stooq_symbol(sym)
+            resp = c.get(f"https://stooq.com/q/d/l/?s={symbol}&i=d")
+            resp.raise_for_status()
+            parsed = list(csv.DictReader(StringIO(resp.text)))
+        except Exception:
+            return None
+        closes: list[float] = []
+        for row in parsed:
+            try:
+                v = float(row.get("Close", "0") or 0)
+            except ValueError:
+                continue
+            if v > 0:
+                closes.append(v)
+        return closes if len(closes) >= min_closes else None
+
+    if client is not None:
+        return _run(client)
+    with httpx.Client(timeout=12.0, follow_redirects=True) as c:
+        return _run(c)
+
+
+def _fallback_snapshot(_ticker: str) -> MarketSnapshot:
+    """
+    Used when Finnhub/Stooq fail. Do NOT invent a fake price — that misleads users.
+    Use zeros + neutral factors so UIs can show 'quote unavailable'.
+    """
     return MarketSnapshot(
-        last_price=last_price,
-        day_change=day_change,
-        momentum_5d=momentum,
-        liquidity_score=min(1.0, liquidity),
-        valuation_sanity=valuation_sanity,
+        last_price=0.0,
+        day_change=0.0,
+        momentum_5d=0.0,
+        liquidity_score=0.3,
+        valuation_sanity=0.5,
     )
 
 

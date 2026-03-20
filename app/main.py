@@ -4,6 +4,7 @@ import json
 import logging
 import time
 
+import httpx
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -22,8 +23,12 @@ from app.services.dashboards import (
 )
 from app.services.sp500 import search_sp500, get_sp500_entry
 from app.services.llm import llm_json_completion
-from app.services.market_data import fetch_market_snapshots
-from app.services.price_forecast import build_price_forecast, fetch_finnhub_daily_closes
+from app.services.market_data import fetch_market_snapshots, fetch_stooq_daily_closes_for_forecast
+from app.services.price_forecast import (
+    MIN_CLOSES_FORECAST,
+    build_price_forecast,
+    fetch_finnhub_daily_series_with_detail,
+)
 from app.services.opportunity_signals import build_opportunity_view
 from app.services.scoring import llm_enhance_scores, score_stocks
 from app.services.summarizer import summarize_batch
@@ -474,40 +479,70 @@ def api_price_forecast(ticker: str):
             },
             status_code=503,
         )
-    closes = fetch_finnhub_daily_closes(sym, settings.finnhub_api_key.strip())
-    if not closes:
+    try:
+        fh_detail = ""
+        closes: list[float] | None = None
+        price_source: str | None = None
+        with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+            series, fh_detail = fetch_finnhub_daily_series_with_detail(
+                sym,
+                settings.finnhub_api_key.strip(),
+                client=client,
+                lookback_days=550,
+                min_closes=MIN_CLOSES_FORECAST,
+            )
+            if series:
+                closes = list(series[0])
+                price_source = "finnhub"
+            if not closes:
+                closes = fetch_stooq_daily_closes_for_forecast(
+                    sym, client, min_closes=MIN_CLOSES_FORECAST
+                )
+                if closes:
+                    price_source = "stooq"
+        if not closes:
+            return JSONResponse(
+                {
+                    "error": "No usable daily history for price forecast.",
+                    "finnhub_detail": fh_detail or None,
+                    "hint": (
+                        "Finnhub /stock/candle often returns no_data on free accounts. "
+                        "This endpoint falls back to Stooq; if both fail, check the ticker (US: NVDA) "
+                        "and your Finnhub key at finnhub.io."
+                    ),
+                },
+                status_code=404,
+            )
+        body = build_price_forecast(closes)
+        # Optional simple "stance" from prob_up + confidence (still not a buy recommendation)
+        enriched_horizons = []
+        for h in body.get("horizons", []):
+            row = dict(h)
+            pu = row.get("prob_up")
+            conf = row.get("confidence") or 0.0
+            if pu is not None and conf >= 0.55 and pu >= 0.58:
+                row["outlook_label"] = "historically skewed positive (weak signal)"
+            elif pu is not None and conf >= 0.55 and pu <= 0.42:
+                row["outlook_label"] = "historically skewed negative (weak signal)"
+            else:
+                row["outlook_label"] = "no strong historical skew"
+            enriched_horizons.append(row)
+        body["horizons"] = enriched_horizons
+        return {
+            "ticker": sym,
+            "data_source": price_source,
+            "disclaimer": (
+                "Research only — not investment advice. Based on past daily returns; "
+                "does not predict actual future prices."
+            ),
+            **body,
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("price-forecast failed for %s: %s", sym, exc)
         return JSONResponse(
-            {
-                "error": (
-                    "No usable daily history from Finnhub for this symbol. "
-                    "Use a US listing symbol (e.g. NVDA, MSFT)."
-                ),
-            },
-            status_code=404,
+            {"error": f"Finnhub or forecast error: {exc!s}"},
+            status_code=502,
         )
-    body = build_price_forecast(closes)
-    # Optional simple "stance" from prob_up + confidence (still not a buy recommendation)
-    enriched_horizons = []
-    for h in body.get("horizons", []):
-        row = dict(h)
-        pu = row.get("prob_up")
-        conf = row.get("confidence") or 0.0
-        if pu is not None and conf >= 0.55 and pu >= 0.58:
-            row["outlook_label"] = "historically skewed positive (weak signal)"
-        elif pu is not None and conf >= 0.55 and pu <= 0.42:
-            row["outlook_label"] = "historically skewed negative (weak signal)"
-        else:
-            row["outlook_label"] = "no strong historical skew"
-        enriched_horizons.append(row)
-    body["horizons"] = enriched_horizons
-    return {
-        "ticker": sym,
-        "disclaimer": (
-            "Research only — not investment advice. Based on past daily returns; "
-            "does not predict actual future prices."
-        ),
-        **body,
-    }
 
 
 @app.get("/api/sp500/search")
@@ -557,6 +592,35 @@ def api_sp500_opinion(ticker: str):
             "uncertainties": ["Market data source may be temporarily unavailable."],
             "headlines": [],
         }
+
+    # Always refresh quote for display (stored scores may be stale or from old placeholder logic).
+    try:
+        live = fetch_market_snapshots(
+            [upper],
+            finnhub_enabled=settings.finnhub_enabled,
+            finnhub_api_key=settings.finnhub_api_key,
+        ).get(upper)
+    except Exception:
+        live = None
+    if live and live.last_price > 0:
+        score = score.model_copy(
+            update={
+                "price": live.last_price,
+                "day_change": live.day_change,
+                "momentum": live.momentum_5d,
+                "liquidity": live.liquidity_score,
+                "valuation_sanity": live.valuation_sanity,
+            }
+        )
+    else:
+        # Do not trust cached price if live fetch failed (avoids showing old fake placeholder quotes).
+        score = score.model_copy(
+            update={
+                "price": 0.0,
+                "day_change": 0.0,
+                "momentum": 0.0,
+            }
+        )
 
     linked = [a for a in articles if score.ticker in a.tickers][:5]
     headlines = [a.title for a in linked]

@@ -130,13 +130,18 @@ export default function HeroSearch() {
             )}
           </div>
 
-          {opinion.price > 0 && (
+          {opinion.price > 0 ? (
             <div className="opinion-price-row">
               <span className="opinion-price">${opinion.price?.toFixed(2)}</span>
               <span className={`opinion-change ${opinion.day_change > 0 ? "up" : opinion.day_change < 0 ? "down" : ""}`}>
                 {opinion.day_change > 0 ? "+" : ""}{((opinion.day_change ?? 0) * 100).toFixed(2)}%
               </span>
             </div>
+          ) : (
+            <p className="opinion-quote-unavailable">
+              No live quote from Finnhub/Stooq for this ticker (or data failed). The price shown earlier
+              may have been a placeholder — check <code>FINNHUB_API_KEY</code>, network, and try Refresh.
+            </p>
           )}
 
           <div className="opinion-metrics">
