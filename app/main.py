@@ -472,28 +472,23 @@ def api_price_forecast(ticker: str):
     sym = (ticker or "").strip().upper()
     if not sym:
         return JSONResponse({"error": "ticker is required"}, status_code=400)
-    if not settings.finnhub_enabled or not settings.finnhub_api_key.strip():
-        return JSONResponse(
-            {
-                "error": "Finnhub required: set FINNHUB_ENABLED=true and FINNHUB_API_KEY in .env",
-            },
-            status_code=503,
-        )
+    use_finnhub = bool(settings.finnhub_enabled and settings.finnhub_api_key.strip())
     try:
-        fh_detail = ""
+        fh_detail = "Finnhub skipped (set FINNHUB_ENABLED=true and FINNHUB_API_KEY to try Finnhub first)" if not use_finnhub else ""
         closes: list[float] | None = None
         price_source: str | None = None
         with httpx.Client(timeout=15.0, follow_redirects=True) as client:
-            series, fh_detail = fetch_finnhub_daily_series_with_detail(
-                sym,
-                settings.finnhub_api_key.strip(),
-                client=client,
-                lookback_days=550,
-                min_closes=MIN_CLOSES_FORECAST,
-            )
-            if series:
-                closes = list(series[0])
-                price_source = "finnhub"
+            if use_finnhub:
+                series, fh_detail = fetch_finnhub_daily_series_with_detail(
+                    sym,
+                    settings.finnhub_api_key.strip(),
+                    client=client,
+                    lookback_days=550,
+                    min_closes=MIN_CLOSES_FORECAST,
+                )
+                if series:
+                    closes = list(series[0])
+                    price_source = "finnhub"
             if not closes:
                 closes = fetch_stooq_daily_closes_for_forecast(
                     sym, client, min_closes=MIN_CLOSES_FORECAST

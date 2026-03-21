@@ -89,7 +89,7 @@ Set values in `.env`:
 - `POST /refresh` - fetch, summarize, and score now
 - `GET /api/audit` - latest recommendation audit records
 - `GET /api/source-health` - recent feed/source health checks
-- `GET /api/price-forecast?ticker=NVDA` - empirical 10/20/30 **trading-day** outlook from Finnhub daily history: historical P(up), median-implied price, and a heuristic confidence (requires `FINNHUB_ENABLED` + `FINNHUB_API_KEY`; not investment advice)
+- `GET /api/price-forecast?ticker=NVDA` - empirical 10/20/30 **trading-day** outlook from daily closes: tries **Finnhub** when `FINNHUB_ENABLED` + `FINNHUB_API_KEY` are set, otherwise **Stooq** (no extra key). Returns `data_source`: `finnhub` or `stooq`. Not investment advice.
 
 ## Notes
 

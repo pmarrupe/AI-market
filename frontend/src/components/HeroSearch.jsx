@@ -215,13 +215,13 @@ export default function HeroSearch() {
           )}
 
           <div className="price-forecast-block">
-            <span className="opinion-section-label">Price outlook (Finnhub history)</span>
+            <span className="opinion-section-label">Price outlook (historical daily data)</span>
             <p className="price-forecast-disclaimer">
               Empirical only — not a buy/sell recommendation. Uses past daily returns; option 1 = P(up),
               option 2 = median-implied price.
             </p>
             {forecastLoading && (
-              <p className="price-forecast-loading">Loading Finnhub outlook…</p>
+              <p className="price-forecast-loading">Loading price outlook…</p>
             )}
             {forecastError && !forecastLoading && (
               <p className="price-forecast-error">{forecastError}</p>
@@ -229,7 +229,8 @@ export default function HeroSearch() {
             {forecast && !forecastLoading && (
               <>
                 <p className="price-forecast-meta">
-                  Last close (Finnhub): <strong>${forecast.last_close?.toFixed(2)}</strong>
+                  Last close ({forecast.data_source || "historical"}):{" "}
+                  <strong>${forecast.last_close?.toFixed(2)}</strong>
                 </p>
                 <div className="price-forecast-table-wrap">
                   <table className="price-forecast-table">
