@@ -3,6 +3,7 @@ import { useState } from "react";
 const NAV_ITEMS = [
   { id: "overview", label: "Overview" },
   { id: "stocks", label: "Stock Intelligence" },
+  { id: "explosive-radar", label: "Explosive Move Radar" },
   { id: "industry", label: "Industry Map" },
   { id: "funding", label: "Startup Funding" },
   { id: "launches", label: "Product Launches" },

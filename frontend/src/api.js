@@ -34,6 +34,33 @@ export async function getSP500Opinion(ticker) {
   return res.json();
 }
 
+export async function fetchExplosiveRadar(query = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(query).forEach(([k, v]) => {
+    if (v === undefined || v === null || v === "") return;
+    qs.set(k, String(v));
+  });
+  if (!qs.has("sort")) qs.set("sort", "opportunity");
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${BASE}/api/explosive-radar${suffix}`);
+  if (!res.ok) throw new Error(`Explosive radar failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchExplosiveRadarTicker(ticker) {
+  const res = await fetch(
+    `${BASE}/api/explosive-radar/${encodeURIComponent(ticker)}`
+  );
+  if (!res.ok) throw new Error(`Radar detail failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchExplosiveRadarConfig() {
+  const res = await fetch(`${BASE}/api/explosive-radar/config`);
+  if (!res.ok) throw new Error(`Radar config failed: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchPriceForecast(ticker) {
   const res = await fetch(
     `${BASE}/api/price-forecast?ticker=${encodeURIComponent(ticker)}`

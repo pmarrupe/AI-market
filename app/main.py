@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
-
-import httpx
+from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
@@ -14,7 +15,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
+from app.models import StockScore
 from app.services.data_sources import fetch_articles, source_health
+from app.services.explosive_radar import (
+    build_explosive_radar_payload,
+    build_explosive_radar_row_for_ticker,
+    filter_explosive_radar_rows,
+    load_explosive_radar_weights,
+    mock_explosive_radar_rows,
+    sort_radar_rows,
+    summarize_radar_rows,
+)
 from app.services.dashboards import (
     ai_product_launch_tracker,
     ai_research_dashboard,
@@ -32,6 +43,7 @@ from app.services.price_forecast import (
 from app.services.opportunity_signals import build_opportunity_view
 from app.services.scoring import llm_enhance_scores, score_stocks
 from app.services.summarizer import summarize_batch
+from app.services.top_performer_universe import discover_top_performer_tickers
 from app.services.universe import discover_top_tickers
 from app.store import Store
 
@@ -192,19 +204,35 @@ def refresh_data() -> dict[str, object]:
         llm=llm_cfg,
         llm_max_articles=settings.llm_summary_max_articles,
     )
-    if settings.dynamic_universe_enabled:
-        previous_universe = [score.ticker for score in store.get_stock_scores(limit=100)]
-        tickers = discover_top_tickers(
-            summarized,
-            llm=llm_cfg,
-            fallback_tickers=settings.default_tickers,
+    src = settings.universe_source
+    if src == "top_performers":
+        tickers = discover_top_performer_tickers(
+            finnhub_enabled=settings.finnhub_enabled,
+            finnhub_api_key=settings.finnhub_api_key,
             max_tickers=settings.dynamic_universe_size,
-            previous_tickers=previous_universe,
-            blend_fallback=settings.dynamic_universe_blend_fallback,
-            explore_mode=settings.dynamic_universe_explore_mode,
-            min_fresh_tickers=settings.dynamic_universe_min_fresh,
+            pool_max=settings.top_performer_pool_max,
+            min_price=settings.top_performer_min_price,
+            fallback_tickers=settings.default_tickers,
         )
+    elif src == "dynamic_llm":
+        if settings.dynamic_universe_enabled:
+            previous_universe = [score.ticker for score in store.get_stock_scores(limit=100)]
+            tickers = discover_top_tickers(
+                summarized,
+                llm=llm_cfg,
+                fallback_tickers=settings.default_tickers,
+                max_tickers=settings.dynamic_universe_size,
+                previous_tickers=previous_universe,
+                blend_fallback=settings.dynamic_universe_blend_fallback,
+                explore_mode=settings.dynamic_universe_explore_mode,
+                min_fresh_tickers=settings.dynamic_universe_min_fresh,
+            )
+        else:
+            tickers = settings.default_tickers
+    elif src == "static":
+        tickers = settings.default_tickers
     else:
+        logger.warning("Unknown UNIVERSE_SOURCE=%r — using DEFAULT_TICKERS", src)
         tickers = settings.default_tickers
     market = fetch_market_snapshots(
         tickers,
@@ -809,6 +837,208 @@ def api_analysis_cards(limit: int = 5):
     stocks = store.get_stock_scores(limit=20)
     articles = store.get_articles(limit=80)
     return _analyst_cards(stocks[:limit], articles)
+
+
+def _explosive_radar_mock_enabled() -> bool:
+    return os.getenv("EXPLOSIVE_RADAR_MOCK", "").strip().lower() in {"1", "true", "yes"}
+
+
+@app.get("/api/explosive-radar/config")
+def api_explosive_radar_config() -> dict[str, object]:
+    weights = load_explosive_radar_weights()
+    return {
+        "weights": weights,
+        "version": "explosive-radar-v2",
+        "documentation": {
+            "jumpScore": (
+                "0–100 structural opportunity from volume, multi-day momentum, breakouts, gaps, and dollar volume. "
+                "High jump alone can still be low quality — pair with confidence and ranked opportunity."
+            ),
+            "catalystScore": (
+                "0–100 news/theme strength from linked headlines (sqrt-damped keyword stacking). "
+                "Not verification of facts — only textual proximity to catalyst themes."
+            ),
+            "riskScore": (
+                "0–100 failure-mode pressure: illiquidity, volatility expansion, orphan spikes, gap fades, micro dollar volume."
+            ),
+            "confidenceScore": (
+                "0–100 how complete and cross-checkable the inputs are (bars, RVOL, dollar volume, news, agreement). "
+                "Not bullish/bearish — low confidence means the jump signal is less trustworthy."
+            ),
+            "rankedOpportunityScore": (
+                "Transparent composite ranking from weights: jump, catalyst, confidence, agreement minus risk. "
+                "Tunable via ranked_* coefficients in explosive_radar_weights.json."
+            ),
+            "limitations": (
+                "Rules-based snapshot; micro-caps and price-only spikes are penalized but not eliminated. "
+                "Historical validation utility is diagnostic only, not a performance guarantee."
+            ),
+        },
+    }
+
+
+@app.get("/api/explosive-radar")
+def api_explosive_radar(
+    min_jump: int | None = None,
+    max_risk: int | None = None,
+    setup_type: str | None = None,
+    sector: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    news_catalyst_only: bool = False,
+    low_float_only: bool = False,
+    limit: int = 100,
+    sort: str | None = None,
+) -> dict[str, object]:
+    """
+    Abnormal momentum / catalyst radar for the active scored universe (probabilistic, explainable).
+    """
+    weights = load_explosive_radar_weights()
+    if _explosive_radar_mock_enabled():
+        rows = mock_explosive_radar_rows()
+        summary = summarize_radar_rows(rows, weights)
+        filtered = filter_explosive_radar_rows(
+            rows,
+            min_jump=min_jump,
+            max_risk=max_risk,
+            setup_type=setup_type,
+            sector=sector,
+            min_price=min_price,
+            max_price=max_price,
+            news_catalyst_only=news_catalyst_only,
+            low_float_only=low_float_only,
+            float_reported_available=False,
+        )[: max(1, min(limit, 200))]
+        sort_radar_rows(filtered, sort)
+        return {
+            "disclaimer": (
+                "Explosive move likelihood is a heuristic, not a prediction. "
+                "MOCK payload (EXPLOSIVE_RADAR_MOCK) — not live data."
+            ),
+            "mock": True,
+            "meta": {
+                "floatReportedAvailable": False,
+                "sort": (sort or "opportunity").strip().lower(),
+            },
+            "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            "summary": summary,
+            "items": filtered,
+        }
+
+    stocks = store.get_stock_scores(limit=100)
+    articles = store.get_articles(limit=200)
+    rows = build_explosive_radar_payload(
+        stocks,
+        articles,
+        finnhub_enabled=settings.finnhub_enabled,
+        finnhub_api_key=settings.finnhub_api_key,
+        weights=weights,
+        sort_by=sort or "opportunity",
+    )
+    summary = summarize_radar_rows(rows, weights)
+    float_reported_available = any(
+        bool((r.get("dataFlags") or {}).get("floatShares")) for r in rows
+    )
+    filtered = filter_explosive_radar_rows(
+        rows,
+        min_jump=min_jump,
+        max_risk=max_risk,
+        setup_type=setup_type,
+        sector=sector,
+        min_price=min_price,
+        max_price=max_price,
+        news_catalyst_only=news_catalyst_only,
+        low_float_only=low_float_only,
+        float_reported_available=float_reported_available,
+    )[: max(1, min(limit, 200))]
+    sort_radar_rows(filtered, sort)
+    return {
+        "disclaimer": (
+            "Explosive move likelihood is a heuristic radar for abnormal breakout-style conditions, "
+            "not a guarantee of future returns."
+        ),
+        "mock": False,
+        "meta": {
+            "floatReportedAvailable": float_reported_available,
+            "sort": (sort or "opportunity").strip().lower(),
+        },
+        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        "summary": summary,
+        "items": filtered,
+    }
+
+
+@app.get("/api/explosive-radar/{ticker}", response_model=None)
+def api_explosive_radar_ticker(ticker: str):
+    sym = (ticker or "").strip().upper()
+    if not sym:
+        return JSONResponse({"error": "ticker is required"}, status_code=400)
+    weights = load_explosive_radar_weights()
+    if _explosive_radar_mock_enabled():
+        for row in mock_explosive_radar_rows():
+            if row.get("ticker") == sym:
+                return {
+                    "disclaimer": "MOCK payload (EXPLOSIVE_RADAR_MOCK) — not live data.",
+                    "mock": True,
+                    "item": row,
+                }
+        return JSONResponse({"error": "Ticker not in mock sample (try MOCK1 or MOCK2)"}, status_code=404)
+
+    stocks = store.get_stock_scores(limit=200)
+    stock = next((s for s in stocks if s.ticker == sym), None)
+    articles = store.get_articles(limit=200)
+    if not stock:
+        try:
+            market = fetch_market_snapshots(
+                [sym],
+                finnhub_enabled=settings.finnhub_enabled,
+                finnhub_api_key=settings.finnhub_api_key,
+            )
+        except Exception:
+            market = {}
+        snap = market.get(sym)
+        if not snap or snap.last_price <= 0:
+            return JSONResponse(
+                {
+                    "error": "Ticker not in active universe and quote unavailable.",
+                    "hint": "Run refresh so the ticker is tracked, or check the symbol.",
+                },
+                status_code=404,
+            )
+        stock = StockScore(
+            ticker=sym,
+            price=snap.last_price,
+            day_change=snap.day_change,
+            score=0.0,
+            confidence=0.0,
+            momentum=snap.momentum_5d,
+            liquidity=snap.liquidity_score,
+            valuation_sanity=snap.valuation_sanity,
+            sentiment=0.0,
+            relevance=0.0,
+            explanation="On-demand explosive radar row (not in stored universe).",
+            updated_at=datetime.now(timezone.utc),
+        )
+        scored = score_stocks([sym], articles, market, min_confidence=0.0)
+        if scored:
+            stock = scored[0]
+
+    item = build_explosive_radar_row_for_ticker(
+        sym,
+        stock,
+        articles,
+        finnhub_enabled=settings.finnhub_enabled,
+        finnhub_api_key=settings.finnhub_api_key,
+        weights=weights,
+    )
+    return {
+        "disclaimer": (
+            "Explosive move likelihood is a heuristic radar for abnormal breakout-style conditions, "
+            "not a guarantee of future returns."
+        ),
+        "mock": False,
+        "item": item,
+    }
 
 
 @app.get("/api/dashboard")

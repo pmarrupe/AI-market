@@ -38,11 +38,14 @@ class Settings:
     llm_score_user_prompt_prefix: str
     llm_summary_system_prompt: str
     llm_summary_user_prompt_suffix: str
+    universe_source: str
     dynamic_universe_enabled: bool
     dynamic_universe_size: int
     dynamic_universe_explore_mode: bool
     dynamic_universe_blend_fallback: bool
     dynamic_universe_min_fresh: int
+    top_performer_pool_max: int
+    top_performer_min_price: float
     newsapi_enabled: bool
     newsapi_api_key: str
     finnhub_enabled: bool
@@ -74,8 +77,13 @@ def get_settings() -> Settings:
             )
         ),
         default_tickers=_split_csv(
-            os.getenv("DEFAULT_TICKERS", "NVDA,MSFT,GOOGL,AMZN,META,TSM,ASML,AMD")
+            os.getenv(
+                "DEFAULT_TICKERS",
+                # Fallback / safety list when Finnhub movers fail (keep short).
+                "SPY,QQQ,NVDA,MSFT",
+            )
         ),
+        universe_source=os.getenv("UNIVERSE_SOURCE", "top_performers").strip().lower(),
         scoring_weights=json.loads(
             os.getenv(
                 "SCORING_WEIGHTS_JSON",
@@ -137,6 +145,8 @@ def get_settings() -> Settings:
             os.getenv("DYNAMIC_UNIVERSE_BLEND_FALLBACK"), default=False
         ),
         dynamic_universe_min_fresh=int(os.getenv("DYNAMIC_UNIVERSE_MIN_FRESH", "3")),
+        top_performer_pool_max=int(os.getenv("TOP_PERFORMER_POOL_MAX", "100")),
+        top_performer_min_price=float(os.getenv("TOP_PERFORMER_MIN_PRICE", "2.0")),
         newsapi_enabled=_as_bool(os.getenv("NEWSAPI_ENABLED"), default=False),
         newsapi_api_key=os.getenv("NEWSAPI_API_KEY", ""),
         finnhub_enabled=_as_bool(os.getenv("FINNHUB_ENABLED"), default=False),

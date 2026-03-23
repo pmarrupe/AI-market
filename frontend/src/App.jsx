@@ -5,6 +5,7 @@ import Header from "./components/Header";
 import KPIGrid from "./components/KPIGrid";
 import HeroSearch from "./components/HeroSearch";
 import StockScanner from "./components/StockScanner";
+import ExplosiveMoveRadar from "./components/ExplosiveMoveRadar";
 import IndustryMap from "./components/IndustryMap";
 import StockDashboard from "./components/StockDashboard";
 import SummaryBar from "./components/SummaryBar";
@@ -101,6 +102,8 @@ export default function App() {
               isLoading={loading}
               onRequestRefresh={loadData}
             />
+
+            <ExplosiveMoveRadar />
 
             <IndustryMap items={data.industry_map} />
 
