@@ -51,7 +51,9 @@ GICS_SECTOR_BASELINES: dict[str, dict[str, float]] = {
     "Financials": {"ai_revenue_share": 0.14, "gpu_shipments": 0.11, "datacenter_growth": 0.17},
     "Health Care": {"ai_revenue_share": 0.15, "gpu_shipments": 0.08, "datacenter_growth": 0.18},
     "Industrials": {"ai_revenue_share": 0.13, "gpu_shipments": 0.11, "datacenter_growth": 0.14},
-    "Information Technology": {"ai_revenue_share": 0.32, "gpu_shipments": 0.48, "datacenter_growth": 0.31},
+    # Software-heavy IT names (e.g. Workday) shouldn't look like they "ship GPUs";
+    # this bar is a heuristic proxy, so keep IT GPU adjacency lower.
+    "Information Technology": {"ai_revenue_share": 0.32, "gpu_shipments": 0.18, "datacenter_growth": 0.31},
     "Materials": {"ai_revenue_share": 0.10, "gpu_shipments": 0.08, "datacenter_growth": 0.11},
     "Real Estate": {"ai_revenue_share": 0.08, "gpu_shipments": 0.06, "datacenter_growth": 0.10},
     "Utilities": {"ai_revenue_share": 0.06, "gpu_shipments": 0.04, "datacenter_growth": 0.09},

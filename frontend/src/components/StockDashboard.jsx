@@ -19,7 +19,7 @@ export default function StockDashboard({ rows = [] }) {
             <th>Price</th>
             <th>1D</th>
             <th>AI Revenue Share</th>
-            <th>GPU Shipments</th>
+            <th>AI GPU Exposure</th>
             <th>AI Datacenter Growth</th>
             <th>Score</th>
           </tr>
