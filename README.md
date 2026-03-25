@@ -52,7 +52,7 @@ uvicorn app.main:app --reload
 Set values in `.env`:
 - `DATABASE_PATH`: SQLite file location
 - `NEWS_FEEDS`: Comma-separated RSS URLs
-- `UNIVERSE_SOURCE`: `top_performers` (default) = S&P 500 subset ranked by Finnhub **daily % change**; `dynamic_llm` = LLM picks from industry lists; `static` = only `DEFAULT_TICKERS`; `watchlist` = only `WATCHLIST_TICKERS`; `tracked` = only `TRACKED_TICKERS` (falls back to `DEFAULT_TICKERS` if the list is empty); `blend` = your `WATCHLIST_TICKERS` ∪ `TRACKED_TICKERS` (or `DEFAULT_TICKERS` if both empty), then ranked movers to fill up to `DYNAMIC_UNIVERSE_SIZE` (Finnhub for movers; anchor-only if Finnhub is off)
+- `UNIVERSE_SOURCE`: `blend` (default) = your `WATCHLIST_TICKERS` ∪ `TRACKED_TICKERS` (or `DEFAULT_TICKERS` if both empty), then ranked S&P movers to fill up to `DYNAMIC_UNIVERSE_SIZE`; `top_performers` = movers only; `dynamic_llm` = LLM picks from industry lists; `static` = only `DEFAULT_TICKERS`; `watchlist` / `tracked` = only that list
 - `TOP_PERFORMER_POOL_MAX`: How many S&P names to quote per day (Finnhub rate limits — default 100)
 - `TOP_PERFORMER_MIN_PRICE`: Skip quotes below this last price (filters penny noise)
 - `DEFAULT_TICKERS`: Fallback list when movers/LLM fail, or the full universe when `UNIVERSE_SOURCE=static`

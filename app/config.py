@@ -84,7 +84,7 @@ def get_settings() -> Settings:
                 "SPY,QQQ,NVDA,MSFT",
             )
         ),
-        universe_source=os.getenv("UNIVERSE_SOURCE", "top_performers").strip().lower(),
+        universe_source=os.getenv("UNIVERSE_SOURCE", "blend").strip().lower(),
         scoring_weights=json.loads(
             os.getenv(
                 "SCORING_WEIGHTS_JSON",

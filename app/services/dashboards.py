@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from app.models import Article, StockScore
+from app.services.sp500 import get_sp500_entry
 
 SECTOR_MAP = {
     "NVDA": "Semiconductors",
@@ -40,6 +41,22 @@ SECTOR_MAP = {
     "JNJ": "Healthcare AI",
 }
 
+# When a ticker is not in SECTOR_MAP, use GICS Sector from `sp500_universe.csv` for the label
+# and these baselines for dashboard heuristic bars (Information Technology tilts more "AI-adjacent").
+GICS_SECTOR_BASELINES: dict[str, dict[str, float]] = {
+    "Communication Services": {"ai_revenue_share": 0.22, "gpu_shipments": 0.25, "datacenter_growth": 0.22},
+    "Consumer Discretionary": {"ai_revenue_share": 0.12, "gpu_shipments": 0.10, "datacenter_growth": 0.12},
+    "Consumer Staples": {"ai_revenue_share": 0.10, "gpu_shipments": 0.07, "datacenter_growth": 0.09},
+    "Energy": {"ai_revenue_share": 0.07, "gpu_shipments": 0.05, "datacenter_growth": 0.10},
+    "Financials": {"ai_revenue_share": 0.14, "gpu_shipments": 0.11, "datacenter_growth": 0.17},
+    "Health Care": {"ai_revenue_share": 0.15, "gpu_shipments": 0.08, "datacenter_growth": 0.18},
+    "Industrials": {"ai_revenue_share": 0.13, "gpu_shipments": 0.11, "datacenter_growth": 0.14},
+    "Information Technology": {"ai_revenue_share": 0.32, "gpu_shipments": 0.48, "datacenter_growth": 0.31},
+    "Materials": {"ai_revenue_share": 0.10, "gpu_shipments": 0.08, "datacenter_growth": 0.11},
+    "Real Estate": {"ai_revenue_share": 0.08, "gpu_shipments": 0.06, "datacenter_growth": 0.10},
+    "Utilities": {"ai_revenue_share": 0.06, "gpu_shipments": 0.04, "datacenter_growth": 0.09},
+}
+
 SECTOR_BASELINES = {
     "Semiconductors": {"ai_revenue_share": 0.42, "gpu_shipments": 0.88, "datacenter_growth": 0.33},
     "Cloud & Software": {"ai_revenue_share": 0.28, "gpu_shipments": 0.46, "datacenter_growth": 0.29},
@@ -54,6 +71,29 @@ FUNDING_RE = re.compile(
     re.IGNORECASE,
 )
 SERIES_STAGE_RE = re.compile(r"\bseries\s+([a-e])\b", re.IGNORECASE)
+
+
+def resolve_stock_sector(ticker: str) -> str:
+    """Sector label: curated AI bucket first, else GICS sector from S&P universe CSV."""
+    t = (ticker or "").strip().upper()
+    if not t:
+        return "Other"
+    if t in SECTOR_MAP:
+        return SECTOR_MAP[t]
+    entry = get_sp500_entry(t)
+    if entry:
+        gics = str(entry.get("sector") or "").strip()
+        if gics and gics != "Other":
+            return gics
+    return "Other"
+
+
+def _baseline_for_sector(sector: str) -> dict[str, float]:
+    if sector in SECTOR_BASELINES:
+        return SECTOR_BASELINES[sector]
+    if sector in GICS_SECTOR_BASELINES:
+        return GICS_SECTOR_BASELINES[sector]
+    return {"ai_revenue_share": 0.16, "gpu_shipments": 0.11, "datacenter_growth": 0.14}
 
 
 def _startup_name_from_title(title: str) -> str:
@@ -142,11 +182,8 @@ def ai_research_dashboard(articles: list[Article], limit: int = 12) -> list[dict
 def ai_stock_market_dashboard(stocks: list[StockScore]) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for stock in stocks:
-        sector = SECTOR_MAP.get(stock.ticker, "Other")
-        base = SECTOR_BASELINES.get(
-            sector,
-            {"ai_revenue_share": 0.16, "gpu_shipments": 0.11, "datacenter_growth": 0.14},
-        )
+        sector = resolve_stock_sector(stock.ticker)
+        base = _baseline_for_sector(sector)
         ai_revenue_share = round(min(0.95, base["ai_revenue_share"] + (stock.relevance * 0.2)), 3)
         gpu_shipments = round(min(1.0, base["gpu_shipments"] + max(0.0, stock.momentum * 0.3)), 3)
         datacenter_growth = round(

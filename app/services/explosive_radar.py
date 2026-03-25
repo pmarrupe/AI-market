@@ -24,7 +24,7 @@ from typing import Any
 import httpx
 
 from app.models import Article, StockScore
-from app.services.dashboards import SECTOR_MAP
+from app.services.dashboards import resolve_stock_sector
 from app.services.explosive_radar_data import DailyBarSeries, fetch_daily_bars_for_radar
 from app.services.sp500 import get_sp500_entry
 
@@ -542,7 +542,7 @@ def compute_explosive_radar_row(
 
     entry = get_sp500_entry(ticker)
     company = (entry or {}).get("name") or ticker
-    sector = (entry or {}).get("sector") or SECTOR_MAP.get(ticker.upper(), "Other")
+    sector = resolve_stock_sector(ticker)
 
     data_flags = {
         "marketCap": False,
