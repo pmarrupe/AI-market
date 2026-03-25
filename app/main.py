@@ -43,8 +43,9 @@ from app.services.price_forecast import (
 from app.services.opportunity_signals import build_opportunity_view
 from app.services.scoring import llm_enhance_scores, score_stocks
 from app.services.summarizer import summarize_batch
+from app.services.blend_universe import build_blend_universe
 from app.services.top_performer_universe import discover_top_performer_tickers
-from app.services.universe import discover_top_tickers
+from app.services.universe import dedupe_tickers, discover_top_tickers
 from app.store import Store
 
 settings = get_settings()
@@ -231,6 +232,21 @@ def refresh_data() -> dict[str, object]:
             tickers = settings.default_tickers
     elif src == "static":
         tickers = settings.default_tickers
+    elif src == "watchlist":
+        tickers = dedupe_tickers(settings.watchlist_tickers) or settings.default_tickers
+    elif src == "tracked":
+        tickers = dedupe_tickers(settings.tracked_tickers) or settings.default_tickers
+    elif src == "blend":
+        tickers = build_blend_universe(
+            watchlist_tickers=settings.watchlist_tickers,
+            tracked_tickers=settings.tracked_tickers,
+            default_tickers=settings.default_tickers,
+            finnhub_enabled=settings.finnhub_enabled,
+            finnhub_api_key=settings.finnhub_api_key,
+            target_size=settings.dynamic_universe_size,
+            pool_max=settings.top_performer_pool_max,
+            min_price=settings.top_performer_min_price,
+        )
     else:
         logger.warning("Unknown UNIVERSE_SOURCE=%r — using DEFAULT_TICKERS", src)
         tickers = settings.default_tickers

@@ -113,3 +113,15 @@ def discover_top_tickers(
     if not fallback_tickers:
         return fallback_tickers[:max_tickers]
     return fallback_tickers[:max_tickers]
+
+
+def dedupe_tickers(symbols: list[str]) -> list[str]:
+    """Uppercase, strip whitespace, preserve order, drop duplicates and empties."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in symbols:
+        s = str(raw).strip().upper()
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out

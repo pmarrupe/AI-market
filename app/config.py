@@ -24,6 +24,7 @@ class Settings:
     recommendation_confidence_threshold: float
     scoring_model_version: str
     watchlist_tickers: list[str]
+    tracked_tickers: list[str]
     alert_score_threshold: float
     alert_sentiment_threshold: float
     alert_delta_threshold: float
@@ -96,6 +97,7 @@ def get_settings() -> Settings:
         ),
         scoring_model_version=os.getenv("SCORING_MODEL_VERSION", "scoring-v1.1"),
         watchlist_tickers=_split_csv(os.getenv("WATCHLIST_TICKERS", "NVDA,MSFT,GOOGL")),
+        tracked_tickers=_split_csv(os.getenv("TRACKED_TICKERS", "")),
         alert_score_threshold=float(os.getenv("ALERT_SCORE_THRESHOLD", "0.55")),
         alert_sentiment_threshold=float(os.getenv("ALERT_SENTIMENT_THRESHOLD", "0.35")),
         alert_delta_threshold=float(os.getenv("ALERT_DELTA_THRESHOLD", "0.08")),

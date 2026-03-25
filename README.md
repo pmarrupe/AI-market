@@ -52,7 +52,7 @@ uvicorn app.main:app --reload
 Set values in `.env`:
 - `DATABASE_PATH`: SQLite file location
 - `NEWS_FEEDS`: Comma-separated RSS URLs
-- `UNIVERSE_SOURCE`: `top_performers` (default) = S&P 500 subset ranked by Finnhub **daily % change**; `dynamic_llm` = LLM picks from industry lists; `static` = only `DEFAULT_TICKERS`
+- `UNIVERSE_SOURCE`: `top_performers` (default) = S&P 500 subset ranked by Finnhub **daily % change**; `dynamic_llm` = LLM picks from industry lists; `static` = only `DEFAULT_TICKERS`; `watchlist` = only `WATCHLIST_TICKERS`; `tracked` = only `TRACKED_TICKERS` (falls back to `DEFAULT_TICKERS` if the list is empty); `blend` = your `WATCHLIST_TICKERS` ∪ `TRACKED_TICKERS` (or `DEFAULT_TICKERS` if both empty), then ranked movers to fill up to `DYNAMIC_UNIVERSE_SIZE` (Finnhub for movers; anchor-only if Finnhub is off)
 - `TOP_PERFORMER_POOL_MAX`: How many S&P names to quote per day (Finnhub rate limits — default 100)
 - `TOP_PERFORMER_MIN_PRICE`: Skip quotes below this last price (filters penny noise)
 - `DEFAULT_TICKERS`: Fallback list when movers/LLM fail, or the full universe when `UNIVERSE_SOURCE=static`
@@ -60,7 +60,8 @@ Set values in `.env`:
 - `SUMMARY_CONFIDENCE_THRESHOLD`: Minimum evidence score for publishing summaries
 - `RECOMMENDATION_CONFIDENCE_THRESHOLD`: Minimum evidence score for stock recommendations
 - `SCORING_MODEL_VERSION`: Version label recorded in recommendation audit logs
-- `WATCHLIST_TICKERS`: Comma-separated watchlist symbols for alerting
+- `WATCHLIST_TICKERS`: Comma-separated watchlist symbols for alerting; also the scored universe when `UNIVERSE_SOURCE=watchlist`
+- `TRACKED_TICKERS`: Comma-separated symbols scored for radar/ticker when `UNIVERSE_SOURCE=tracked`
 - `ALERT_SCORE_THRESHOLD`: Alert when score is above threshold
 - `ALERT_SENTIMENT_THRESHOLD`: Alert when absolute sentiment is above threshold
 - `ALERT_DELTA_THRESHOLD`: Alert when score changes by this amount vs prior refresh
@@ -72,7 +73,7 @@ Set values in `.env`:
 - `LLM_MAX_TOKENS`: Max completion tokens for LLM calls
 - `LLM_SUMMARY_MAX_ARTICLES`: Max articles per refresh to enrich via LLM summaries (latency control)
 - `DYNAMIC_UNIVERSE_ENABLED`: When `UNIVERSE_SOURCE=dynamic_llm`, use LLM to choose tickers from industry lists
-- `DYNAMIC_UNIVERSE_SIZE`: Maximum number of dynamically selected tickers
+- `DYNAMIC_UNIVERSE_SIZE`: Cap for dynamic lists; for `UNIVERSE_SOURCE=blend`, target **total** ticker count after appending movers (your watchlist ∪ tracked list always comes first; if that list is longer than this value, the full list is kept)
 - `DYNAMIC_UNIVERSE_EXPLORE_MODE`: Rotate in fresher names to avoid same list every refresh
 - `DYNAMIC_UNIVERSE_BLEND_FALLBACK`: Blend `DEFAULT_TICKERS` into LLM picks for stability
 - `DYNAMIC_UNIVERSE_MIN_FRESH`: Minimum fresh tickers to inject in explore mode
