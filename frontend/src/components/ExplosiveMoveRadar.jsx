@@ -28,6 +28,19 @@ const TT = {
     "Confidence (0–100): data completeness + cross-checks (history, RVOL, $ volume, news, agreement). Not direction.",
   ranked:
     "Ranked opportunity: tunable blend of jump, catalyst, confidence, signal agreement minus risk. Default list order from API uses this when sort=opportunity.",
+  ticker: "Ticker symbol.",
+  company: "Company name associated with the ticker.",
+  price: "Latest snapshot price used by the radar (not intraday).",
+  change1dPct: "1-day price change percent (used to detect momentum/extension).",
+  change3dPct: "3-day price change percent (used to detect multi-day continuation).",
+  relativeVolume:
+    "Relative volume vs recent baseline (higher usually = stronger activity).",
+  setupType:
+    "Setup type: the classification of why the move might happen (e.g., gap-and-go, momentum continuation).",
+  flags:
+    "Flags summarize data/structure issues (e.g., Fragile = thin liquidity / gap-fade risk; Low data = low confidence).",
+  topReason:
+    "Top reason: a short human-readable summary from the radar model describing the most important driver(s).",
 };
 
 function scoreTone(score) {
@@ -213,6 +226,14 @@ export default function ExplosiveMoveRadar() {
           {label}
           {sort.key === key ? (sort.dir === "asc" ? " ↑" : " ↓") : ""}
         </button>
+      </Tooltip>
+    </th>
+  );
+
+  const staticTh = (label, tip) => (
+    <th>
+      <Tooltip text={tip}>
+        <span className="radar-th-sort">{label}</span>
       </Tooltip>
     </th>
   );
@@ -420,24 +441,49 @@ export default function ExplosiveMoveRadar() {
             description="Relax filters or refresh intelligence so tickers have fresh history."
           />
         )}
+        {!loading && !error && sortedItems.length > 0 && (
+          <div className="radar-legend">
+            <span className="radar-legend__label">Score color tone</span>
+            <span className="radar-legend__item">
+              <span className="radar-score radar-score--high">High</span> (>= 65)
+            </span>
+            <span className="radar-legend__item">
+              <span className="radar-score radar-score--mid">Mid</span> (40–64)
+            </span>
+            <span className="radar-legend__item">
+              <span className="radar-score radar-score--low">Low</span> (&lt; 40)
+            </span>
+            <span className="radar-legend__note">
+              Applies to Opp / Jump / Cat / Risk / Conf (confidence is data quality, not direction).
+            </span>
+          </div>
+        )}
         {!error && sortedItems.length > 0 && (
           <table className="scanner-table radar-table">
             <thead>
               <tr>
-                <th>{sortLabel("ticker", "Ticker")}</th>
-                <th>Company</th>
-                <th>{sortLabel("price", "Price")}</th>
-                <th>{sortLabel("change1dPct", "1D %")}</th>
-                <th>{sortLabel("change3dPct", "3D %")}</th>
-                <th>{sortLabel("relativeVolume", "Rel vol")}</th>
+                <th>
+                  <Tooltip text={TT.ticker}>
+                    <span>{sortLabel("ticker", "Ticker")}</span>
+                  </Tooltip>
+                </th>
+                {staticTh("Company", TT.company)}
+                {sortTh("price", "Price", TT.price)}
+                {sortTh("change1dPct", "1D %", TT.change1dPct)}
+                {sortTh("change3dPct", "3D %", TT.change3dPct)}
+                {sortTh("relativeVolume", "Rel vol", TT.relativeVolume)}
                 {sortTh("rankedOpportunityScore", "Opp", TT.ranked)}
                 {sortTh("jumpScore", "Jump", TT.jump)}
                 {sortTh("catalystScore", "Cat", TT.catalyst)}
                 {sortTh("riskScore", "Risk", TT.risk)}
                 {sortTh("confidenceScore", "Conf", TT.confidence)}
-                <th>{sortLabel("setupType", "Setup")}</th>
-                <th>Flags</th>
-                <th>Top reason</th>
+                <th>
+                  <Tooltip text={TT.setupType}>
+                    <span>{sortLabel("setupType", "Setup")}</span>
+                  </Tooltip>
+                </th>
+                {staticTh("Flags", TT.flags)}
+                {staticTh("Top reason", TT.topReason)}
               </tr>
             </thead>
             <tbody>

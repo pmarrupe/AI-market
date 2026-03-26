@@ -1755,6 +1755,40 @@ a:hover { text-decoration: underline; color: #c4dfff; }
   max-height: 520px;
 }
 
+.radar-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin: 12px 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(79, 125, 255, 0.12);
+}
+
+.radar-legend__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7daa;
+}
+
+.radar-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #a8b8e0;
+  white-space: nowrap;
+}
+
+.radar-legend__note {
+  font-size: 11px;
+  color: #6b7daa;
+}
+
 .radar-table .radar-co {
   white-space: normal;
   font-size: 12px;
