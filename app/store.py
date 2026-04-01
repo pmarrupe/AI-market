@@ -255,6 +255,43 @@ class Store:
             for row in rows
         ]
 
+    def get_stock_scores_by_tickers(self, tickers: list[str]) -> dict[str, StockScore]:
+        """
+        Fetch stored StockScore rows for a specific set of tickers.
+        Used to avoid overwriting valid price fields with zeros when live snapshots fail.
+        """
+        normalized = [t.strip().upper() for t in (tickers or []) if t and t.strip()]
+        if not normalized:
+            return {}
+
+        placeholders = ",".join("?" for _ in normalized)
+        query = f"""
+            SELECT ticker, score, confidence, momentum, liquidity, valuation_sanity,
+                   sentiment, relevance, explanation, updated_at, price, day_change
+            FROM stock_scores
+            WHERE ticker IN ({placeholders})
+        """
+        with self.connect() as conn:
+            rows = conn.execute(query, tuple(normalized)).fetchall()
+
+        out: dict[str, StockScore] = {}
+        for row in rows:
+            out[str(row[0])] = StockScore(
+                ticker=row[0],
+                score=row[1],
+                confidence=row[2],
+                momentum=row[3],
+                liquidity=row[4],
+                valuation_sanity=row[5],
+                sentiment=row[6],
+                relevance=row[7],
+                explanation=row[8],
+                updated_at=_from_iso(row[9]),
+                price=row[10],
+                day_change=row[11],
+            )
+        return out
+
     def append_recommendation_audit(
         self, scores: list[StockScore], articles: list[Article], model_version: str
     ) -> None:

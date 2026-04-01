@@ -90,7 +90,7 @@ export default function DashboardScreen() {
   ];
 
   const summaryFunding = formatFundingTotal(data?.startup_funding ?? []);
-  const topSectorName = (data?.industry_map?.[0]?.sector) ?? "—";
+  const topSectorName = data?.stock_rows?.[0]?.sector ?? "—";
 
   return (
     <ScrollView
@@ -160,16 +160,6 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {data?.industry_map?.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Sectors</Text>
-          {data.industry_map.slice(0, 5).map((s) => (
-            <Text key={s.sector} style={styles.muted}>
-              {s.sector} — {s.tickers?.length ?? 0} tickers
-            </Text>
-          ))}
-        </View>
-      )}
     </ScrollView>
   );
 }

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from io import StringIO
 
 import httpx
+import time
 
 from app.services.price_forecast import fetch_finnhub_daily_series
 
@@ -137,6 +138,57 @@ def _compute_from_closes(closes: list[float], volumes: list[float] | None = None
     )
 
 
+def _fetch_finnhub_quote_snapshot(
+    ticker: str,
+    *,
+    api_key: str,
+    client: httpx.Client,
+) -> MarketSnapshot | None:
+    """
+    Fallback when Finnhub candle endpoint is unavailable.
+    Uses /quote (c,d,dp,pc) to populate a real latest price and 1D change.
+    """
+    if not ticker or not api_key:
+        return None
+    try:
+        resp = client.get(
+            "https://finnhub.io/api/v1/quote",
+            params={"symbol": ticker.upper(), "token": api_key},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        return None
+
+    try:
+        price = float(data.get("c", 0) or 0)
+    except (TypeError, ValueError):
+        price = 0.0
+    if price <= 0:
+        return None
+
+    # Prefer dp (percent change), otherwise derive from c and pc.
+    day_change = 0.0
+    try:
+        dp = data.get("dp")
+        if dp is not None:
+            day_change = float(dp) / 100.0
+        else:
+            prev_close = float(data.get("pc", 0) or 0)
+            if prev_close > 0:
+                day_change = (price - prev_close) / prev_close
+    except (TypeError, ValueError, ZeroDivisionError):
+        day_change = 0.0
+
+    return MarketSnapshot(
+        last_price=round(price, 2),
+        day_change=round(day_change, 3),
+        momentum_5d=0.0,       # unavailable from /quote alone
+        liquidity_score=0.45,  # neutral fallback
+        valuation_sanity=0.6,  # neutral fallback
+    )
+
+
 def fetch_market_snapshots(
     tickers: list[str],
     *,
@@ -148,30 +200,59 @@ def fetch_market_snapshots(
     """
     out: dict[str, MarketSnapshot] = {}
     use_fh = bool(finnhub_enabled and finnhub_api_key.strip())
+
+    # If providers respond but give us price=0.0, retry once briefly to reduce
+    # transient outages/rate-limits showing up as "0.00" in the UI.
+    max_attempts = 2
+    retry_delay_s = 0.8
+
     with httpx.Client(timeout=12.0, follow_redirects=True) as client:
         for ticker in tickers:
             sym = ticker.strip().upper()
-            try:
-                if use_fh:
-                    series = fetch_finnhub_daily_series(
-                        sym,
-                        finnhub_api_key.strip(),
-                        client=client,
-                        lookback_days=120,
-                        min_closes=6,
-                    )
-                    snapshot = (
-                        _compute_from_closes(series[0], series[1]) if series else None
-                    )
-                    if snapshot:
-                        out[ticker] = snapshot
-                        continue
-                symbol = _stooq_symbol(sym)
-                resp = client.get(f"https://stooq.com/q/d/l/?s={symbol}&i=d")
-                resp.raise_for_status()
-                parsed = list(csv.DictReader(StringIO(resp.text)))
-                snapshot = _compute_from_rows(parsed)
-                out[ticker] = snapshot if snapshot else _fallback_snapshot(ticker)
-            except Exception:
-                out[ticker] = _fallback_snapshot(ticker)
+            snapshot: MarketSnapshot | None = None
+
+            for attempt in range(max_attempts):
+                try:
+                    if use_fh:
+                        series = fetch_finnhub_daily_series(
+                            sym,
+                            finnhub_api_key.strip(),
+                            client=client,
+                            lookback_days=120,
+                            min_closes=6,
+                        )
+                        snapshot = (
+                            _compute_from_closes(series[0], series[1])
+                            if series
+                            else None
+                        )
+                        if snapshot and snapshot.last_price > 0:
+                            break
+
+                        quote_snapshot = _fetch_finnhub_quote_snapshot(
+                            sym,
+                            api_key=finnhub_api_key.strip(),
+                            client=client,
+                        )
+                        if quote_snapshot and quote_snapshot.last_price > 0:
+                            snapshot = quote_snapshot
+                            break
+
+                    symbol = _stooq_symbol(sym)
+                    resp = client.get(f"https://stooq.com/q/d/l/?s={symbol}&i=d")
+                    resp.raise_for_status()
+                    parsed = list(csv.DictReader(StringIO(resp.text)))
+                    computed = _compute_from_rows(parsed)
+                    snapshot = computed if computed else _fallback_snapshot(ticker)
+                except Exception:
+                    snapshot = _fallback_snapshot(ticker)
+
+                # Retry only when we got a "0.0 price" outcome.
+                if snapshot and snapshot.last_price > 0:
+                    break
+                if attempt < max_attempts - 1:
+                    time.sleep(retry_delay_s)
+
+            out[ticker] = snapshot if snapshot else _fallback_snapshot(ticker)
+
     return out

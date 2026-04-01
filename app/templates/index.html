@@ -13,7 +13,6 @@
         <nav class="side-nav">
           <a class="active" href="#overview">Overview</a>
           <a href="#stocks">Stock Intelligence</a>
-          <a href="#industry">Industry Map</a>
           <a href="#funding">Startup Funding</a>
           <a href="#launches">Product Launches</a>
           <a href="#research">Research</a>
@@ -232,26 +231,6 @@
           <div class="scanner-empty">
             <p>No stock scores yet. Hit <strong>Refresh Intelligence</strong> to populate.</p>
           </div>
-          {% endif %}
-        </section>
-
-        <section id="industry" class="panel">
-          <h2>Industry-to-Stock Map</h2>
-          {% if industry_map %}
-          <div class="industry-grid">
-            {% for item in industry_map %}
-            <article class="industry-card">
-              <h3>{{ item.sector }}</h3>
-              <p class="chip-row">{{ item.tickers | join(", ") }}</p>
-              <div class="bar-track">
-                <div class="bar-fill sector-bar" style="width: {{ (item.avg_score * 100)|round(0, 'floor') }}%"></div>
-              </div>
-              <small>Average sector score: {{ "%.3f"|format(item.avg_score) }}</small>
-            </article>
-            {% endfor %}
-          </div>
-          {% else %}
-          <p>No sector mapping yet.</p>
           {% endif %}
         </section>
 

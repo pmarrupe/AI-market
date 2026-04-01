@@ -146,30 +146,6 @@ def _analyst_cards(stocks, articles):
     return cards
 
 
-def _industry_map(stock_market_rows):
-    groups: dict[str, dict[str, object]] = {}
-    for row in stock_market_rows:
-        sector = row["sector"]
-        if sector not in groups:
-            groups[sector] = {"sector": sector, "tickers": [], "avg_score": 0.0, "count": 0}
-        groups[sector]["tickers"].append(row["ticker"])
-        groups[sector]["avg_score"] += float(row["score"])
-        groups[sector]["count"] += 1
-    out = []
-    for sector_data in groups.values():
-        count = max(1, int(sector_data["count"]))
-        avg_score = round(float(sector_data["avg_score"]) / count, 3)
-        out.append(
-            {
-                "sector": sector_data["sector"],
-                "tickers": sector_data["tickers"],
-                "avg_score": avg_score,
-            }
-        )
-    out.sort(key=lambda x: x["avg_score"], reverse=True)
-    return out
-
-
 def refresh_data() -> dict[str, object]:
     started = time.perf_counter()
     llm_cfg = {
@@ -250,6 +226,7 @@ def refresh_data() -> dict[str, object]:
     else:
         logger.warning("Unknown UNIVERSE_SOURCE=%r — using DEFAULT_TICKERS", src)
         tickers = settings.default_tickers
+
     market = fetch_market_snapshots(
         tickers,
         finnhub_enabled=settings.finnhub_enabled,
@@ -323,141 +300,6 @@ def api_alerts():
         settings.alert_sentiment_threshold,
         settings.alert_delta_threshold,
     )
-
-
-@app.get("/api/watchlist-briefing")
-def api_watchlist_briefing():
-    """
-    AI-generated briefing for the configured watchlist tickers.
-
-    Uses the existing opportunity view as structured input to the LLM and
-    returns a compact summary plus per-ticker notes.
-    """
-    watchlist = [ticker.upper() for ticker in settings.watchlist_tickers]
-    if not watchlist:
-        return {
-            "tickers": [],
-            "summary": "No watchlist configured yet.",
-            "items": [],
-            "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-        }
-
-    article_pool = store.get_articles(limit=180)
-    stocks = store.get_stock_scores(limit=100)
-    previous_scores = store.get_previous_score_map()
-    opportunity = build_opportunity_view(
-        stocks=stocks,
-        articles=article_pool,
-        previous_scores=previous_scores,
-        stock_market_rows=ai_stock_market_dashboard(stocks),
-    )
-
-    rows = [
-        row
-        for row in opportunity["rows"]
-        if row.get("ticker", "").upper() in watchlist
-    ]
-
-    def _fallback_response() -> dict[str, object]:
-        """Deterministic fallback if there is no LLM or it fails."""
-        if not rows:
-            return {
-                "tickers": watchlist,
-                "summary": "No current scores for watchlist tickers in the active universe.",
-                "items": [],
-                "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-            }
-        sorted_rows = sorted(rows, key=lambda r: r.get("opportunityRank", 9999))
-        top = sorted_rows[: min(3, len(sorted_rows))]
-        summary = (
-            "Watchlist overview based on current scores and signals. "
-            f"Top names today: {', '.join(r['ticker'] for r in top)}."
-        )
-        items = []
-        for row in sorted_rows:
-            items.append(
-                {
-                    "ticker": row["ticker"],
-                    "stance": row.get("status") or row.get("signalLabel") or "Watchlist",
-                    "rationale": row.get("recommendationNote") or row.get("aiSummary") or "",
-                    "key_risks": [],
-                }
-            )
-        return {
-            "tickers": watchlist,
-            "summary": summary,
-            "items": items,
-            "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-        }
-
-    if not settings.llm_enabled or not settings.llm_api_key:
-        return _fallback_response()
-
-    system_prompt = (
-        "You are a buy-side analyst creating a concise watchlist briefing for a portfolio owner. "
-        "You will receive structured JSON rows for several tickers. "
-        "Return strict JSON with keys: summary (string) and items (array). "
-        "Each item must be {ticker, stance, rationale, key_risks}. "
-        "stance is a short label like 'Actionable', 'Watch', or 'High risk'. "
-        "rationale is 2-3 short sentences grounded only in the provided data. "
-        "key_risks is an array of 1-3 short bullet phrases, or [] if nothing material."
-    )
-
-    user_payload = {
-        "watchlist_tickers": watchlist,
-        "rows": rows,
-    }
-    user_prompt = (
-        "User watchlist tickers:\n"
-        f"{', '.join(watchlist)}\n\n"
-        "Structured data for each ticker (JSON):\n"
-        f"{json.dumps(user_payload, default=str)}\n\n"
-        "Generate a concise briefing focused on near-term opportunity and risk."
-    )
-
-    llm_out = llm_json_completion(
-        enabled=settings.llm_enabled,
-        api_key=settings.llm_api_key,
-        base_url=settings.llm_base_url,
-        model=settings.llm_model,
-        temperature=settings.llm_temperature,
-        max_tokens=min(settings.llm_max_tokens, 800),
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-    )
-
-    if not llm_out:
-        return _fallback_response()
-
-    summary = str(llm_out.get("summary") or "").strip()
-    items = llm_out.get("items") or []
-    if not summary or not isinstance(items, list):
-        return _fallback_response()
-
-    normalized_items: list[dict[str, object]] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        ticker = str(item.get("ticker") or "").upper()
-        if not ticker:
-            continue
-        normalized_items.append(
-            {
-                "ticker": ticker,
-                "stance": str(item.get("stance") or "").strip() or "Watchlist",
-                "rationale": str(item.get("rationale") or "").strip(),
-                "key_risks": item.get("key_risks") if isinstance(item.get("key_risks"), list) else [],
-            }
-        )
-    if not normalized_items:
-        return _fallback_response()
-
-    return {
-        "tickers": watchlist,
-        "summary": summary,
-        "items": normalized_items,
-        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-    }
 
 
 @app.get("/api/audit")
@@ -1057,11 +899,55 @@ def api_explosive_radar_ticker(ticker: str):
     }
 
 
+def _stocks_with_live_quotes(stocks: list[StockScore]) -> list[StockScore]:
+    """Overlay Finnhub/Stooq snapshot on cached scores so the UI is not stuck at $0.00."""
+    tickers = [s.ticker for s in stocks if s.ticker]
+    if not tickers:
+        return stocks
+    try:
+        live_map = fetch_market_snapshots(
+            tickers,
+            finnhub_enabled=settings.finnhub_enabled,
+            finnhub_api_key=settings.finnhub_api_key,
+        )
+    except Exception:
+        return stocks
+    merged: list[StockScore] = []
+    for s in stocks:
+        snap = live_map.get(s.ticker)
+        if snap and snap.last_price > 0:
+            merged.append(
+                s.model_copy(
+                    update={
+                        "price": snap.last_price,
+                        "day_change": snap.day_change,
+                        "momentum": snap.momentum_5d,
+                        "liquidity": snap.liquidity_score,
+                        "valuation_sanity": snap.valuation_sanity,
+                    }
+                )
+            )
+        else:
+            # No fresh quote => do not show stale/previous prices.
+            merged.append(
+                s.model_copy(
+                    update={
+                        "price": 0.0,
+                        "day_change": 0.0,
+                        "momentum": 0.0,
+                        "liquidity": 0.3,
+                        "valuation_sanity": 0.5,
+                    }
+                )
+            )
+    return merged
+
+
 @app.get("/api/dashboard")
 def api_dashboard():
     """Aggregated dashboard payload consumed by the React frontend."""
     article_pool = store.get_articles(limit=180)
-    stocks = store.get_stock_scores(limit=10)
+    stocks = _stocks_with_live_quotes(store.get_stock_scores(limit=10))
     previous_scores = store.get_previous_score_map()
     startup_funding = ai_startup_funding_tracker(article_pool, limit=8)
     product_launches = ai_product_launch_tracker(article_pool, limit=8)
@@ -1072,7 +958,6 @@ def api_dashboard():
         previous_scores=previous_scores,
         stock_market_rows=stock_market_rows,
     )
-    industry_map = _industry_map(stock_market_rows)
     research_items = ai_research_dashboard(article_pool, limit=8)
     return {
         "stocks": [s.__dict__ if hasattr(s, "__dict__") else s for s in stocks],
@@ -1086,7 +971,6 @@ def api_dashboard():
         "stock_risk_levels": opportunity["risk_levels"],
         "stock_time_horizons": opportunity["time_horizons"],
         "stock_statuses": opportunity["statuses"],
-        "industry_map": industry_map,
         "research_items": research_items,
     }
 
@@ -1119,7 +1003,6 @@ def dashboard(request: Request):
         previous_scores=previous_scores,
         stock_market_rows=stock_market_rows,
     )
-    industry_map = _industry_map(stock_market_rows)
     research_items = ai_research_dashboard(article_pool, limit=8)
     return templates.TemplateResponse(
         request=request,
@@ -1141,7 +1024,6 @@ def dashboard(request: Request):
             "stock_risk_levels": opportunity["risk_levels"],
             "stock_time_horizons": opportunity["time_horizons"],
             "stock_statuses": opportunity["statuses"],
-            "industry_map": industry_map,
             "research_items": research_items,
         },
     )

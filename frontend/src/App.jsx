@@ -1,50 +1,31 @@
 import { useState, useEffect, useCallback } from "react";
-import { fetchDashboard, fetchWatchlistBriefing } from "./api";
+import { fetchDashboard } from "./api";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import KPIGrid from "./components/KPIGrid";
 import HeroSearch from "./components/HeroSearch";
 import StockScanner from "./components/StockScanner";
 import ExplosiveMoveRadar from "./components/ExplosiveMoveRadar";
-import IndustryMap from "./components/IndustryMap";
 import StockDashboard from "./components/StockDashboard";
 import SummaryBar from "./components/SummaryBar";
 import StartupFunding from "./components/StartupFunding";
 import ProductLaunches from "./components/ProductLaunches";
 import Research from "./components/Research";
-import WatchlistBriefing from "./components/WatchlistBriefing";
-
 export default function App() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeSection, setActiveSection] = useState("overview");
-  const [watchlistBriefing, setWatchlistBriefing] = useState(null);
-  const [watchlistLoading, setWatchlistLoading] = useState(false);
-  const [watchlistError, setWatchlistError] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setWatchlistLoading(true);
-    setWatchlistError(null);
     try {
-      const [dashboardResult, briefingResult] = await Promise.all([
-        fetchDashboard(),
-        fetchWatchlistBriefing().catch((err) => {
-          setWatchlistError(err.message);
-          return null;
-        }),
-      ]);
-      setData(dashboardResult);
-      if (briefingResult) {
-        setWatchlistBriefing(briefingResult);
-      }
+      setData(await fetchDashboard());
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
-      setWatchlistLoading(false);
     }
   }, []);
 
@@ -105,17 +86,9 @@ export default function App() {
 
             <ExplosiveMoveRadar />
 
-            <IndustryMap items={data.industry_map} />
-
             <StockDashboard rows={data.stock_market_rows} />
 
             <SummaryBar data={data} />
-
-            <WatchlistBriefing
-              data={watchlistBriefing}
-              isLoading={watchlistLoading}
-              error={watchlistError}
-            />
 
             <section className="panel-grid">
               <StartupFunding items={data.startup_funding} />

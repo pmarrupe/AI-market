@@ -6,12 +6,6 @@ export async function fetchDashboard() {
   return res.json();
 }
 
-export async function fetchWatchlistBriefing() {
-  const res = await fetch(`${BASE}/api/watchlist-briefing`);
-  if (!res.ok) throw new Error(`Watchlist briefing fetch failed: ${res.status}`);
-  return res.json();
-}
-
 export async function refreshIntelligence() {
   const res = await fetch(`${BASE}/refresh`, { method: "POST" });
   if (!res.ok) throw new Error(`Refresh failed: ${res.status}`);

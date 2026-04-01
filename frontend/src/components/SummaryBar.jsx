@@ -17,16 +17,16 @@ function formatFundingTotal(items) {
   return `${items.length}`;
 }
 
-function topSector(industryMap) {
-  if (!industryMap || industryMap.length === 0) return "—";
-  return industryMap[0].sector;
+function topSectorFromRows(stockRows) {
+  if (!stockRows || stockRows.length === 0) return "—";
+  return stockRows[0].sector || "—";
 }
 
 export default function SummaryBar({ data }) {
   const funding = data.startup_funding || [];
   const launches = data.product_launches || [];
   const research = data.research_items || [];
-  const industry = data.industry_map || [];
+  const stockRows = data.stock_rows || [];
 
   return (
     <div className="summary-bar">
@@ -63,7 +63,7 @@ export default function SummaryBar({ data }) {
           </svg>
         }
         label="Top Sector"
-        value={topSector(industry)}
+        value={topSectorFromRows(stockRows)}
       />
       <StatCard
         variant="gold"
