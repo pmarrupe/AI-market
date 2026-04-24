@@ -928,18 +928,9 @@ def _stocks_with_live_quotes(stocks: list[StockScore]) -> list[StockScore]:
                 )
             )
         else:
-            # No fresh quote => do not show stale/previous prices.
-            merged.append(
-                s.model_copy(
-                    update={
-                        "price": 0.0,
-                        "day_change": 0.0,
-                        "momentum": 0.0,
-                        "liquidity": 0.3,
-                        "valuation_sanity": 0.5,
-                    }
-                )
-            )
+            # No fresh quote (e.g. Finnhub rate limit right after /refresh) =>
+            # keep the stored price from the last scoring pass rather than zeroing.
+            merged.append(s)
     return merged
 
 
