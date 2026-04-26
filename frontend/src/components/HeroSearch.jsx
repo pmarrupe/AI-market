@@ -368,11 +368,11 @@ export default function HeroSearch() {
                     </div>
 
                     <div className="hero-trade-plan__grid">
-                      <div><span className="opinion-metric-label">Entry</span><p className="opinion-metric-value">${tradePlan.plan.entry.toFixed(2)}</p></div>
-                      <div><span className="opinion-metric-label">Stop</span><p className="opinion-metric-value down">${tradePlan.plan.stop.toFixed(2)}</p></div>
-                      <div><span className="opinion-metric-label">Target 1</span><p className="opinion-metric-value up">${tradePlan.plan.target1.toFixed(2)}</p></div>
-                      <div><span className="opinion-metric-label">Target 2</span><p className="opinion-metric-value up">${tradePlan.plan.target2.toFixed(2)}</p></div>
-                      <div><span className="opinion-metric-label">ATR(14)</span><p className="opinion-metric-value">{tradePlan.plan.atr14.toFixed(3)}</p></div>
+                      <div><span className="opinion-metric-label">Entry</span><p className="opinion-metric-value">{Number.isFinite(tradePlan.plan.entry) ? `$${tradePlan.plan.entry.toFixed(2)}` : "—"}</p></div>
+                      <div><span className="opinion-metric-label">Stop</span><p className="opinion-metric-value down">{Number.isFinite(tradePlan.plan.stop) ? `$${tradePlan.plan.stop.toFixed(2)}` : "—"}</p></div>
+                      <div><span className="opinion-metric-label">Target 1</span><p className="opinion-metric-value up">{Number.isFinite(tradePlan.plan.target1) ? `$${tradePlan.plan.target1.toFixed(2)}` : "—"}</p></div>
+                      <div><span className="opinion-metric-label">Target 2</span><p className="opinion-metric-value up">{Number.isFinite(tradePlan.plan.target2) ? `$${tradePlan.plan.target2.toFixed(2)}` : "—"}</p></div>
+                      <div><span className="opinion-metric-label">ATR(14)</span><p className="opinion-metric-value">{Number.isFinite(tradePlan.plan.atr14) ? tradePlan.plan.atr14.toFixed(3) : "—"}</p></div>
                       <div><span className="opinion-metric-label">R:R</span><p className="opinion-metric-value">{tradePlan.plan.rewardRisk1 ?? "—"}× / {tradePlan.plan.rewardRisk2 ?? "—"}×</p></div>
                       {tradePlan.plan.rsi14 != null && (
                         <div>
@@ -419,7 +419,7 @@ export default function HeroSearch() {
                       })()}
                       <div>
                         <span className="opinion-metric-label">Risk / share</span>
-                        <p className="opinion-metric-value">${tradePlan.plan.riskPerShare.toFixed(2)}</p>
+                        <p className="opinion-metric-value">{Number.isFinite(tradePlan.plan.riskPerShare) ? `$${tradePlan.plan.riskPerShare.toFixed(2)}` : "—"}</p>
                       </div>
                       <div>
                         <span className="opinion-metric-label">Suggested shares</span>

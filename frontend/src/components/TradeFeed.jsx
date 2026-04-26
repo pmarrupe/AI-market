@@ -472,13 +472,13 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                   </td>
                   {showDetails && <td className="dim">{row.horizon || "—"}</td>}
                   <td className="font-mono td-price">
-                    {plan ? `$${plan.entry.toFixed(2)}` : "—"}
+                    {Number.isFinite(plan?.entry) ? `$${plan.entry.toFixed(2)}` : "—"}
                   </td>
                   <td className="font-mono td-price trade-feed__stop">
-                    {plan ? `$${plan.stop.toFixed(2)}` : "—"}
+                    {Number.isFinite(plan?.stop) ? `$${plan.stop.toFixed(2)}` : "—"}
                   </td>
                   <td className="font-mono td-price trade-feed__target">
-                    {plan ? `$${plan.target1.toFixed(2)}` : "—"}
+                    {Number.isFinite(plan?.target1) ? `$${plan.target1.toFixed(2)}` : "—"}
                   </td>
                   {showDetails && (
                     <td className="font-mono">
@@ -591,13 +591,13 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                     </div>
                   </div>
                   <div className="trade-feed__plan-grid">
-                    <div><span className="detail-card-label">Entry</span><p>${selected.plan.entry.toFixed(2)}</p></div>
-                    <div><span className="detail-card-label">Stop</span><p className="trade-feed__stop">${selected.plan.stop.toFixed(2)}</p></div>
-                    <div><span className="detail-card-label">Target 1</span><p className="trade-feed__target">${selected.plan.target1.toFixed(2)}</p></div>
-                    <div><span className="detail-card-label">Target 2</span><p className="trade-feed__target">${selected.plan.target2.toFixed(2)}</p></div>
-                    <div><span className="detail-card-label">ATR(14)</span><p>{selected.plan.atr14.toFixed(3)}</p></div>
+                    <div><span className="detail-card-label">Entry</span><p>{Number.isFinite(selected.plan.entry) ? `$${selected.plan.entry.toFixed(2)}` : "—"}</p></div>
+                    <div><span className="detail-card-label">Stop</span><p className="trade-feed__stop">{Number.isFinite(selected.plan.stop) ? `$${selected.plan.stop.toFixed(2)}` : "—"}</p></div>
+                    <div><span className="detail-card-label">Target 1</span><p className="trade-feed__target">{Number.isFinite(selected.plan.target1) ? `$${selected.plan.target1.toFixed(2)}` : "—"}</p></div>
+                    <div><span className="detail-card-label">Target 2</span><p className="trade-feed__target">{Number.isFinite(selected.plan.target2) ? `$${selected.plan.target2.toFixed(2)}` : "—"}</p></div>
+                    <div><span className="detail-card-label">ATR(14)</span><p>{Number.isFinite(selected.plan.atr14) ? selected.plan.atr14.toFixed(3) : "—"}</p></div>
                     <div><span className="detail-card-label">R:R</span><p>{selected.plan.rewardRisk1 ?? "—"}× / {selected.plan.rewardRisk2 ?? "—"}×</p></div>
-                    <div><span className="detail-card-label">Risk / share</span><p>${selected.plan.riskPerShare.toFixed(2)}</p></div>
+                    <div><span className="detail-card-label">Risk / share</span><p>{Number.isFinite(selected.plan.riskPerShare) ? `$${selected.plan.riskPerShare.toFixed(2)}` : "—"}</p></div>
                     <div>
                       <span className="detail-card-label">Suggested shares</span>
                       <p>
