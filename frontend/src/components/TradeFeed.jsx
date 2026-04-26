@@ -5,6 +5,7 @@ import TableSkeleton from "./ui/TableSkeleton";
 import EmptyState from "./ui/EmptyState";
 import Tooltip from "./ui/Tooltip";
 import TradePlanChart from "./TradePlanChart";
+import HowToRead from "./HowToRead";
 
 const HORIZON_ORDER = ["Intraday", "Short-term", "Swing", "Long-term watch", "Unclear"];
 const PORTFOLIO_KEY = "ai_market.portfolio_value";
@@ -518,6 +519,8 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                 ×
               </button>
             </div>
+
+            <HowToRead />
 
             <div className="radar-badge-row">
               <span className={`radar-score radar-score--${convictionTone(selected.conviction)}`}>

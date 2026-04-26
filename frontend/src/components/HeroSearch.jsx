@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { searchSP500, getSP500Opinion, fetchPriceForecast, fetchPortfolio } from "../api";
 import TradePlanChart from "./TradePlanChart";
+import HowToRead from "./HowToRead";
 
 const PORTFOLIO_KEY = "ai_market.portfolio_value";
 const RISK_PCT_KEY = "ai_market.portfolio_risk_pct";
@@ -264,6 +265,7 @@ export default function HeroSearch() {
 
           <div className="hero-trade-plan">
             <span className="opinion-section-label">Trade plan</span>
+            <HowToRead />
             {tradePlanLoading && !tradePlan && (
               <p className="price-forecast-loading">Computing trade plan…</p>
             )}

@@ -1688,6 +1688,112 @@ ol { margin: 0; padding-left: 18px; }
   color: var(--text-dim);
 }
 
+/* ── How to read panel ────────────────────────────────────── */
+
+.how-to-read {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--r);
+  margin-bottom: var(--s-3);
+  overflow: hidden;
+}
+
+.how-to-read__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 10px 14px;
+  font-family: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.how-to-read__toggle:hover { background: rgba(139, 159, 248, 0.06); border: none; box-shadow: none; }
+.how-to-read__toggle:focus { outline: none; box-shadow: none; border: none; }
+
+.how-to-read__caret {
+  color: var(--accent);
+  font-size: 9px;
+  width: 10px;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.how-to-read__title { color: var(--text); }
+
+.how-to-read__hint {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.how-to-read__body {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+  padding-top: 12px;
+}
+
+.how-to-read__section + .how-to-read__section {
+  margin-top: var(--s-4);
+}
+
+.how-to-read__section-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 8px;
+}
+
+.how-to-read__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.how-to-read__row {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: var(--s-3);
+  align-items: baseline;
+  font-size: 12.5px;
+}
+.how-to-read__row dt {
+  color: var(--text);
+  font-weight: 500;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.how-to-read__row dd {
+  margin: 0;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.how-to-read__footer {
+  margin-top: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+@media (max-width: 720px) {
+  .how-to-read__row { grid-template-columns: 1fr; gap: 2px; }
+  .how-to-read__row dt { font-size: 11.5px; }
+}
+
 /* ── Hero Search trade-plan card ──────────────────────────── */
 
 .hero-trade-plan {
