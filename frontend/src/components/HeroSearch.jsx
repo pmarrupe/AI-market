@@ -3,6 +3,7 @@ import { searchSP500, getSP500Opinion, fetchPriceForecast, fetchPortfolio, fetch
 import TradePlanChart from "./TradePlanChart";
 import HowToRead from "./HowToRead";
 import CompanySnapshot from "./CompanySnapshot";
+import { macdLabel } from "../utils/macd";
 
 const PORTFOLIO_KEY = "ai_market.portfolio_value";
 const RISK_PCT_KEY = "ai_market.portfolio_risk_pct";
@@ -384,35 +385,24 @@ export default function HeroSearch() {
                           </p>
                         </div>
                       )}
-                      {tradePlan.plan.macd != null && (
-                        <div>
-                          <span className="opinion-metric-label">
-                            MACD / Signal{" "}
-                            <span
-                              className={
-                                tradePlan.plan.macdHistogram > 0 ? "up" :
-                                tradePlan.plan.macdHistogram < 0 ? "down" : "muted"
-                              }
-                              title={
-                                tradePlan.plan.macdHistogram > 0
-                                  ? "MACD above Signal — trend is up"
-                                  : tradePlan.plan.macdHistogram < 0
-                                  ? "MACD below Signal — trend is down"
-                                  : "MACD equal to Signal — no direction"
-                              }
-                            >
-                              {tradePlan.plan.macdHistogram > 0 ? "↑" :
-                               tradePlan.plan.macdHistogram < 0 ? "↓" : "→"}
+                      {tradePlan.plan.macd != null && (() => {
+                        const ml = macdLabel(tradePlan.plan.macd, tradePlan.plan.macdSignal);
+                        return (
+                          <div>
+                            <span className="opinion-metric-label">
+                              MACD / Signal{" "}
+                              {ml && (
+                                <span className={ml.tone} title={`MACD ${tradePlan.plan.macd.toFixed(2)} vs Signal ${tradePlan.plan.macdSignal.toFixed(2)}`}>
+                                  {ml.arrow} {ml.label}
+                                </span>
+                              )}
                             </span>
-                          </span>
-                          <p className={`opinion-metric-value ${
-                            tradePlan.plan.macdHistogram > 0 ? "up" :
-                            tradePlan.plan.macdHistogram < 0 ? "down" : ""
-                          }`}>
-                            {tradePlan.plan.macd.toFixed(2)} / {tradePlan.plan.macdSignal.toFixed(2)}
-                          </p>
-                        </div>
-                      )}
+                            <p className={`opinion-metric-value ${ml ? ml.tone : ""}`}>
+                              {tradePlan.plan.macd.toFixed(2)} / {tradePlan.plan.macdSignal.toFixed(2)}
+                            </p>
+                          </div>
+                        );
+                      })()}
                       <div>
                         <span className="opinion-metric-label">Risk / share</span>
                         <p className="opinion-metric-value">${tradePlan.plan.riskPerShare.toFixed(2)}</p>

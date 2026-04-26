@@ -7,6 +7,7 @@ import Tooltip from "./ui/Tooltip";
 import TradePlanChart from "./TradePlanChart";
 import HowToRead from "./HowToRead";
 import CompanySnapshot from "./CompanySnapshot";
+import { macdLabel } from "../utils/macd";
 
 const HORIZON_ORDER = ["Intraday", "Short-term", "Swing", "Long-term watch", "Unclear"];
 const PORTFOLIO_KEY = "ai_market.portfolio_value";
@@ -614,35 +615,24 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                         </p>
                       </div>
                     )}
-                    {selected.plan.macd != null && (
-                      <div>
-                        <span className="detail-card-label">
-                          MACD / Signal{" "}
-                          <span
-                            className={
-                              selected.plan.macdHistogram > 0 ? "up" :
-                              selected.plan.macdHistogram < 0 ? "down" : "muted"
-                            }
-                            title={
-                              selected.plan.macdHistogram > 0
-                                ? "MACD above Signal — trend is up"
-                                : selected.plan.macdHistogram < 0
-                                ? "MACD below Signal — trend is down"
-                                : "MACD equal to Signal — no direction"
-                            }
-                          >
-                            {selected.plan.macdHistogram > 0 ? "↑" :
-                             selected.plan.macdHistogram < 0 ? "↓" : "→"}
+                    {selected.plan.macd != null && (() => {
+                      const ml = macdLabel(selected.plan.macd, selected.plan.macdSignal);
+                      return (
+                        <div>
+                          <span className="detail-card-label">
+                            MACD / Signal{" "}
+                            {ml && (
+                              <span className={ml.tone} title={`MACD ${selected.plan.macd.toFixed(2)} vs Signal ${selected.plan.macdSignal.toFixed(2)}`}>
+                                {ml.arrow} {ml.label}
+                              </span>
+                            )}
                           </span>
-                        </span>
-                        <p className={
-                          selected.plan.macdHistogram > 0 ? "up" :
-                          selected.plan.macdHistogram < 0 ? "down" : ""
-                        }>
-                          {selected.plan.macd.toFixed(2)} / {selected.plan.macdSignal.toFixed(2)}
-                        </p>
-                      </div>
-                    )}
+                          <p className={ml ? ml.tone : ""}>
+                            {selected.plan.macd.toFixed(2)} / {selected.plan.macdSignal.toFixed(2)}
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <p className="detail-meta">{selected.plan.note}</p>
                 </div>
