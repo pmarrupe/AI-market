@@ -1643,7 +1643,7 @@ ol { margin: 0; padding-left: 18px; }
 /* ── Trade Feed specifics ──────────────────────────────────── */
 
 .trade-feed__ticker-cell {
-  min-width: 160px;
+  min-width: 140px;
   vertical-align: middle;
 }
 .trade-feed__ticker-main {
@@ -2099,6 +2099,42 @@ ol { margin: 0; padding-left: 18px; }
   box-sizing: border-box;
 }
 .trade-feed__earnings { line-height: 14px; }
+
+/* ── Responsive: tighten the trade-feed table for ~13" laptops ──── */
+
+/* Below 1280px (typical 13" MacBook width minus chrome): compact padding,
+   slightly smaller fonts, slightly narrower ticker cell. */
+@media (max-width: 1280px) {
+  .trade-feed .scanner-table th,
+  .trade-feed .scanner-table td {
+    padding: 8px 6px;
+    font-size: 12.5px;
+  }
+  .trade-feed__ticker-cell { min-width: 120px; }
+  .trade-feed__ticker-main strong { font-size: 12.5px; }
+  .trade-feed__ticker-price { font-size: 11px; }
+  .trade-feed__co { font-size: 10.5px; }
+  .pill, .radar-setup-pill, .indicator-chip, .radar-flag { font-size: 10px; }
+  .trade-feed__source-tag { font-size: 9.5px; padding: 1px 5px; }
+}
+
+/* Below 1100px: hide the Source column entirely — it's informational, not
+   actionable. Source tag is still visible in the drawer. */
+@media (max-width: 1100px) {
+  .trade-feed .scanner-table th:last-child,
+  .trade-feed .scanner-table td:last-child {
+    display: none;
+  }
+}
+
+/* Below 960px: also hide the Flag column (still visible in drawer). */
+@media (max-width: 960px) {
+  .trade-feed .scanner-table th:nth-last-child(2),
+  .trade-feed .scanner-table td:nth-last-child(2) {
+    display: none;
+  }
+  .workspace { padding: var(--s-4) var(--s-3); }
+}
 .trade-feed__source-tag {
   font-size: 10px;
   font-weight: 500;
