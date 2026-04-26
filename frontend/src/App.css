@@ -1689,9 +1689,10 @@ ol { margin: 0; padding-left: 18px; }
 
 .trade-feed__setup-cell {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
 }
 
 .indicator-chip {

@@ -142,6 +142,16 @@ function indicatorTone(label) {
   return "neutral";
 }
 
+const INDICATOR_PRIORITY = ["MACD↑", "MACD↓", "20d HIGH", "20d LOW", "Overbought", "Oversold"];
+function primaryIndicator(indicators) {
+  if (!indicators || indicators.length === 0) return null;
+  for (const p of INDICATOR_PRIORITY) {
+    if (indicators.includes(p)) return p;
+  }
+  const vol = indicators.find((i) => typeof i === "string" && i.startsWith("VOL"));
+  return vol || indicators[0];
+}
+
 export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -455,20 +465,38 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                   </td>
                   <td className="trade-feed__setup-cell">
                     <span className="pill radar-setup-pill">{row.setup}</span>
-                    {(plan?.indicators || []).map((ind) => (
-                      <span
-                        key={ind}
-                        className={`indicator-chip indicator-chip--${indicatorTone(ind)}`}
-                        title={
-                          ind === "Overbought" ? `RSI ${plan.rsi14} — extended; risk of pullback` :
-                          ind === "Oversold" ? `RSI ${plan.rsi14} — washed out; mean-reversion candidate` :
-                          ind === "MACD↑" ? "Fresh MACD bullish crossover (last 3 bars)" :
-                          ind === "MACD↓" ? "Fresh MACD bearish crossover (last 3 bars)" : ind
-                        }
-                      >
-                        {ind}
-                      </span>
-                    ))}
+                    {(() => {
+                      const inds = plan?.indicators || [];
+                      const primary = primaryIndicator(inds);
+                      const extras = inds.filter((i) => i !== primary);
+                      if (!primary) return null;
+                      return (
+                        <>
+                          <span
+                            className={`indicator-chip indicator-chip--${indicatorTone(primary)}`}
+                            title={
+                              primary === "Overbought" ? `RSI ${plan.rsi14} — extended; risk of pullback` :
+                              primary === "Oversold" ? `RSI ${plan.rsi14} — washed out; mean-reversion candidate` :
+                              primary === "MACD↑" ? "Fresh MACD bullish crossover (last 3 bars)" :
+                              primary === "MACD↓" ? "Fresh MACD bearish crossover (last 3 bars)" :
+                              primary === "20d HIGH" ? "Closed at/near the 20-day high (breakout)" :
+                              primary === "20d LOW" ? "Closed at/near the 20-day low (breakdown)" :
+                              primary
+                            }
+                          >
+                            {primary}
+                          </span>
+                          {extras.length > 0 && (
+                            <span
+                              className="indicator-chip trade-feed__flag-more"
+                              title={extras.join(" · ")}
+                            >
+                              +{extras.length}
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
                   </td>
                   {showDetails && <td className="dim">{row.horizon || "—"}</td>}
                   <td className="font-mono td-price">
