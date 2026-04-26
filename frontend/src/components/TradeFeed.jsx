@@ -604,6 +604,34 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                         {suggestShares(portfolioValue, riskPct, selected.plan.riskPerShare) ?? "—"}
                       </p>
                     </div>
+                    {(() => {
+                      const shares = suggestShares(portfolioValue, riskPct, selected.plan.riskPerShare);
+                      if (!shares) return null;
+                      const dollarsAtRisk = shares * selected.plan.riskPerShare;
+                      const dollarsAtT1 = shares * (selected.plan.target1 - selected.plan.entry);
+                      const dollarsAtT2 = shares * (selected.plan.target2 - selected.plan.entry);
+                      const exposure = shares * selected.plan.entry;
+                      return (
+                        <>
+                          <div>
+                            <span className="detail-card-label">Total exposure</span>
+                            <p>${exposure.toFixed(0)}</p>
+                          </div>
+                          <div>
+                            <span className="detail-card-label">$ at risk</span>
+                            <p className="down">−${dollarsAtRisk.toFixed(0)}</p>
+                          </div>
+                          <div>
+                            <span className="detail-card-label">$ profit at T1</span>
+                            <p className="up">+${dollarsAtT1.toFixed(0)}</p>
+                          </div>
+                          <div>
+                            <span className="detail-card-label">$ profit at T2</span>
+                            <p className="up">+${dollarsAtT2.toFixed(0)}</p>
+                          </div>
+                        </>
+                      );
+                    })()}
                     {selected.plan.rsi14 != null && (
                       <div>
                         <span className="detail-card-label">RSI(14)</span>
