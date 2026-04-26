@@ -9,10 +9,8 @@ import SummaryBar from "./components/SummaryBar";
 import StartupFunding from "./components/StartupFunding";
 import ProductLaunches from "./components/ProductLaunches";
 import Research from "./components/Research";
-import WhatChanged from "./components/WhatChanged";
 import Portfolio from "./components/Portfolio";
-import TrackRecord from "./components/TrackRecord";
-import AlertsEngine from "./components/AlertsEngine";
+
 export default function App() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -64,13 +62,6 @@ export default function App() {
 
         {data && (
           <>
-            <TrackRecord />
-
-            <WhatChanged
-              stockRows={data.stock_rows}
-              onChipAction={(intent) => setScannerSortIntent({ intent, at: Date.now() })}
-            />
-
             <KPIGrid data={data} />
 
             <section className="panel disclaimer">
@@ -82,8 +73,6 @@ export default function App() {
             </section>
 
             <HeroSearch />
-
-            <AlertsEngine />
 
             <Portfolio />
 
