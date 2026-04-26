@@ -386,7 +386,25 @@ export default function HeroSearch() {
                       )}
                       {tradePlan.plan.macd != null && (
                         <div>
-                          <span className="opinion-metric-label">MACD / Signal</span>
+                          <span className="opinion-metric-label">
+                            MACD / Signal{" "}
+                            <span
+                              className={
+                                tradePlan.plan.macdHistogram > 0 ? "up" :
+                                tradePlan.plan.macdHistogram < 0 ? "down" : "muted"
+                              }
+                              title={
+                                tradePlan.plan.macdHistogram > 0
+                                  ? "MACD above Signal — trend is up"
+                                  : tradePlan.plan.macdHistogram < 0
+                                  ? "MACD below Signal — trend is down"
+                                  : "MACD equal to Signal — no direction"
+                              }
+                            >
+                              {tradePlan.plan.macdHistogram > 0 ? "↑" :
+                               tradePlan.plan.macdHistogram < 0 ? "↓" : "→"}
+                            </span>
+                          </span>
                           <p className={`opinion-metric-value ${
                             tradePlan.plan.macdHistogram > 0 ? "up" :
                             tradePlan.plan.macdHistogram < 0 ? "down" : ""

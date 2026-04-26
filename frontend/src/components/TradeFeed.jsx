@@ -616,7 +616,25 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                     )}
                     {selected.plan.macd != null && (
                       <div>
-                        <span className="detail-card-label">MACD / Signal</span>
+                        <span className="detail-card-label">
+                          MACD / Signal{" "}
+                          <span
+                            className={
+                              selected.plan.macdHistogram > 0 ? "up" :
+                              selected.plan.macdHistogram < 0 ? "down" : "muted"
+                            }
+                            title={
+                              selected.plan.macdHistogram > 0
+                                ? "MACD above Signal — trend is up"
+                                : selected.plan.macdHistogram < 0
+                                ? "MACD below Signal — trend is down"
+                                : "MACD equal to Signal — no direction"
+                            }
+                          >
+                            {selected.plan.macdHistogram > 0 ? "↑" :
+                             selected.plan.macdHistogram < 0 ? "↓" : "→"}
+                          </span>
+                        </span>
                         <p className={
                           selected.plan.macdHistogram > 0 ? "up" :
                           selected.plan.macdHistogram < 0 ? "down" : ""
