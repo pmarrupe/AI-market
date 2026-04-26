@@ -1642,11 +1642,16 @@ ol { margin: 0; padding-left: 18px; }
 
 /* ── Trade Feed specifics ──────────────────────────────────── */
 
-.trade-feed__ticker-cell { min-width: 140px; }
+.trade-feed__ticker-cell {
+  min-width: 160px;
+  vertical-align: middle;
+}
 .trade-feed__ticker-main {
   display: flex;
   align-items: baseline;
   gap: var(--s-2);
+  height: 18px;
+  line-height: 18px;
 }
 .trade-feed__ticker-main strong { font-weight: 600; font-size: 13.5px; letter-spacing: -0.01em; }
 .trade-feed__ticker-price {
@@ -1659,10 +1664,15 @@ ol { margin: 0; padding-left: 18px; }
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  margin-top: 2px;
+  margin-top: 4px;
   font-size: 11px;
   color: var(--text-muted);
   font-weight: 400;
+  /* Reserve the second-line height even when there's no earnings pill or
+     company name, so every ticker cell has the same total height and the
+     row dividers stay aligned. */
+  height: 18px;
+  line-height: 18px;
 }
 
 .trade-feed__flag-more {
@@ -2080,8 +2090,15 @@ ol { margin: 0; padding-left: 18px; }
 
 /* Lock all trade-feed table rows to a uniform height so dividers stay aligned
    regardless of which chips a row has (earnings pill, +N tag, etc). */
-.trade-feed .scanner-table tbody tr { height: 60px; }
-.trade-feed .scanner-table td { vertical-align: middle; }
+.trade-feed .scanner-table tbody tr {
+  height: 64px;
+}
+.trade-feed .scanner-table tbody td {
+  height: 64px;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+.trade-feed__earnings { line-height: 14px; }
 .trade-feed__source-tag {
   font-size: 10px;
   font-weight: 500;
