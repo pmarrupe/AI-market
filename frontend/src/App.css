@@ -215,6 +215,7 @@ ol { margin: 0; padding-left: 18px; }
 
 .up    { color: var(--up); }
 .down  { color: var(--down); }
+.warn  { color: var(--warn); }
 .muted { color: var(--text-muted); }
 .dim   { color: var(--text-dim); }
 

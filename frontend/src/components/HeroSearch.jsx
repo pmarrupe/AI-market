@@ -386,15 +386,29 @@ export default function HeroSearch() {
                         </div>
                       )}
                       {tradePlan.plan.macd != null && (() => {
-                        const ml = macdLabel(tradePlan.plan.macd, tradePlan.plan.macdSignal);
+                        const ml = macdLabel(
+                          tradePlan.plan.macd,
+                          tradePlan.plan.macdSignal,
+                          tradePlan.plan.rsi14,
+                        );
                         return (
                           <div>
                             <span className="opinion-metric-label">
                               MACD / Signal{" "}
                               {ml && (
-                                <span className={ml.tone} title={`MACD ${tradePlan.plan.macd.toFixed(2)} vs Signal ${tradePlan.plan.macdSignal.toFixed(2)}`}>
-                                  {ml.arrow} {ml.label}
-                                </span>
+                                <>
+                                  <span className={ml.tone} title={`MACD ${tradePlan.plan.macd.toFixed(2)} vs Signal ${tradePlan.plan.macdSignal.toFixed(2)}`}>
+                                    {ml.arrow} {ml.label}
+                                  </span>
+                                  {ml.qualifier && (
+                                    <span
+                                      className={ml.qualifier.tone}
+                                      title={`RSI ${tradePlan.plan.rsi14?.toFixed(1) ?? "—"} — ${ml.qualifier.text}`}
+                                    >
+                                      {" · "}{ml.qualifier.text}
+                                    </span>
+                                  )}
+                                </>
                               )}
                             </span>
                             <p className={`opinion-metric-value ${ml ? ml.tone : ""}`}>

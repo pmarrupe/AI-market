@@ -616,15 +616,29 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                       </div>
                     )}
                     {selected.plan.macd != null && (() => {
-                      const ml = macdLabel(selected.plan.macd, selected.plan.macdSignal);
+                      const ml = macdLabel(
+                        selected.plan.macd,
+                        selected.plan.macdSignal,
+                        selected.plan.rsi14,
+                      );
                       return (
                         <div>
                           <span className="detail-card-label">
                             MACD / Signal{" "}
                             {ml && (
-                              <span className={ml.tone} title={`MACD ${selected.plan.macd.toFixed(2)} vs Signal ${selected.plan.macdSignal.toFixed(2)}`}>
-                                {ml.arrow} {ml.label}
-                              </span>
+                              <>
+                                <span className={ml.tone} title={`MACD ${selected.plan.macd.toFixed(2)} vs Signal ${selected.plan.macdSignal.toFixed(2)}`}>
+                                  {ml.arrow} {ml.label}
+                                </span>
+                                {ml.qualifier && (
+                                  <span
+                                    className={ml.qualifier.tone}
+                                    title={`RSI ${selected.plan.rsi14?.toFixed(1) ?? "—"} — ${ml.qualifier.text}`}
+                                  >
+                                    {" · "}{ml.qualifier.text}
+                                  </span>
+                                )}
+                              </>
                             )}
                           </span>
                           <p className={ml ? ml.tone : ""}>
