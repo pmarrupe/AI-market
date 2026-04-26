@@ -141,26 +141,6 @@ function indicatorTone(label) {
   return "neutral";
 }
 
-function Sparkline({ values }) {
-  if (!values || values.length < 2) return null;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const pad = 2;
-  const w = 120;
-  const h = 40;
-  const span = max - min || 1;
-  const pts = values.map((v, i) => {
-    const x = pad + (i / (values.length - 1)) * (w - pad * 2);
-    const y = h - pad - ((v - min) / span) * (h - pad * 2);
-    return `${x},${y}`;
-  });
-  return (
-    <svg className="radar-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden>
-      <polyline fill="none" stroke="#75c2ff" strokeWidth="1.5" points={pts.join(" ")} />
-    </svg>
-  );
-}
-
 export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -726,41 +706,6 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                     <p className="detail-note">{selected.radar.signalQualitySummary}</p>
                   )}
                 </div>
-                {(selected.radar.reasons || []).length > 0 && (
-                  <>
-                    <div className="detail-card-label">Explainability</div>
-                    <ul className="radar-drawer-list">
-                      {selected.radar.reasons.map((r) => <li key={r}>{r}</li>)}
-                    </ul>
-                  </>
-                )}
-                {(selected.radar.riskNotes || []).length > 0 && (
-                  <>
-                    <div className="detail-card-label">Why this may fail</div>
-                    <ul className="radar-drawer-list radar-drawer-list--risk">
-                      {selected.radar.riskNotes.map((r) => <li key={r}>{r}</li>)}
-                    </ul>
-                  </>
-                )}
-                {(selected.radar.priceHistory || []).length >= 2 && (
-                  <>
-                    <div className="detail-card-label">Recent closes</div>
-                    <Sparkline values={selected.radar.priceHistory} />
-                  </>
-                )}
-                {(selected.radar.headlines || []).length > 0 && (
-                  <>
-                    <div className="detail-card-label">Radar headlines</div>
-                    <ul className="radar-drawer-list">
-                      {selected.radar.headlines.map((h) => (
-                        <li key={h.title}>
-                          <a href={h.url} target="_blank" rel="noreferrer">{h.title}</a>
-                          {h.source && <span className="detail-meta"> · {h.source}</span>}
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
               </>
             )}
           </aside>
