@@ -134,10 +134,18 @@ export default function TradePlanChart({ plan, currentPrice, closesOverride = nu
 
       {renderLevels && (
         <>
-          <Level y={yT2} color="#5dd39e" label="T2" value={plan.target2} />
-          <Level y={yT1} color="#5dd39e" label="T1" value={plan.target1} />
-          <Level y={yEntry} color="#b0b1bf" label="Entry" value={plan.entry} />
-          <Level y={yStop} color="#ef8b7a" label="Stop" value={plan.stop} />
+          {Number.isFinite(plan.target2) && (
+            <Level y={yT2} color="#5dd39e" label="T2" value={plan.target2} />
+          )}
+          {Number.isFinite(plan.target1) && (
+            <Level y={yT1} color="#5dd39e" label="T1" value={plan.target1} />
+          )}
+          {Number.isFinite(plan.entry) && (
+            <Level y={yEntry} color="#b0b1bf" label="Entry" value={plan.entry} />
+          )}
+          {Number.isFinite(plan.stop) && (
+            <Level y={yStop} color="#ef8b7a" label="Stop" value={plan.stop} />
+          )}
         </>
       )}
 

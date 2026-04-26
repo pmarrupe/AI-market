@@ -847,7 +847,7 @@ ol { margin: 0; padding-left: 18px; }
 }
 
 /* Flags */
-.radar-flags { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.radar-flags { display: inline-flex; gap: 4px; flex-wrap: nowrap; white-space: nowrap; }
 .radar-flag {
   display: inline-block;
   padding: 2px 6px;
@@ -2076,7 +2076,12 @@ ol { margin: 0; padding-left: 18px; }
   color: var(--text-muted);
 }
 
-.trade-feed__source { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.trade-feed__source { display: inline-flex; gap: 4px; flex-wrap: nowrap; white-space: nowrap; }
+
+/* Lock all trade-feed table rows to a uniform height so dividers stay aligned
+   regardless of which chips a row has (earnings pill, +N tag, etc). */
+.trade-feed .scanner-table tbody tr { height: 60px; }
+.trade-feed .scanner-table td { vertical-align: middle; }
 .trade-feed__source-tag {
   font-size: 10px;
   font-weight: 500;
