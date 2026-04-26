@@ -20,11 +20,6 @@ function fmtNumber(n) {
   return n.toLocaleString();
 }
 
-function fmtPct(n) {
-  if (n == null || !Number.isFinite(n)) return "—";
-  return `${(n * 100).toFixed(2)}%`;
-}
-
 export default function CompanySnapshot({ ticker, sectorFallback }) {
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -105,32 +100,6 @@ export default function CompanySnapshot({ ticker, sectorFallback }) {
                 {info.fiftyTwoWeekLow != null ? `$${info.fiftyTwoWeekLow.toFixed(2)}` : "—"}
               </p>
             </div>
-            <div>
-              <span className="detail-card-label">P/E (trailing)</span>
-              <p className="font-mono">
-                {info.trailingPE != null ? info.trailingPE.toFixed(1) : "—"}
-              </p>
-            </div>
-            <div>
-              <span className="detail-card-label">Beta</span>
-              <p className="font-mono">
-                {info.beta != null ? info.beta.toFixed(2) : "—"}
-              </p>
-            </div>
-            <div>
-              <span className="detail-card-label">Div yield</span>
-              <p className="font-mono">{fmtPct(info.dividendYield)}</p>
-            </div>
-            {info.website && (
-              <div>
-                <span className="detail-card-label">Website</span>
-                <p>
-                  <a href={info.website} target="_blank" rel="noreferrer" className="company-snapshot__link">
-                    {(info.website || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")} ↗
-                  </a>
-                </p>
-              </div>
-            )}
           </div>
 
           {info.summary && (
