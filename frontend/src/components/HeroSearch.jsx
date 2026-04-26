@@ -432,16 +432,18 @@ export default function HeroSearch() {
                         </p>
                       </div>
                       {(() => {
+                        const p = tradePlan.plan;
                         const shares = suggestShares(
                           readNum(PORTFOLIO_KEY, 10000),
                           readNum(RISK_PCT_KEY, 1),
-                          tradePlan.plan.riskPerShare,
+                          p?.riskPerShare,
                         );
-                        if (!shares) return null;
-                        const dollarsAtRisk = shares * tradePlan.plan.riskPerShare;
-                        const dollarsAtT1 = shares * (tradePlan.plan.target1 - tradePlan.plan.entry);
-                        const dollarsAtT2 = shares * (tradePlan.plan.target2 - tradePlan.plan.entry);
-                        const exposure = shares * tradePlan.plan.entry;
+                        if (!shares || !p || !Number.isFinite(p.entry)) return null;
+                        const safe = (n) => (Number.isFinite(n) ? n : 0);
+                        const dollarsAtRisk = shares * safe(p.riskPerShare);
+                        const dollarsAtT1 = shares * (safe(p.target1) - safe(p.entry));
+                        const dollarsAtT2 = shares * (safe(p.target2) - safe(p.entry));
+                        const exposure = shares * safe(p.entry);
                         return (
                           <>
                             <div><span className="opinion-metric-label">Total exposure</span><p className="opinion-metric-value">${exposure.toFixed(0)}</p></div>

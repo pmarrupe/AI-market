@@ -1827,6 +1827,52 @@ ol { margin: 0; padding-left: 18px; }
   .how-to-read__row dt { font-size: 11.5px; }
 }
 
+/* ── Error boundary fallback ──────────────────────────────── */
+
+.error-boundary {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-5);
+  background: var(--bg);
+}
+
+.error-boundary__card {
+  max-width: 560px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--down);
+  border-radius: var(--r-lg);
+  padding: var(--s-5);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.error-boundary__card h2 {
+  margin: 0 0 var(--s-2);
+  font-size: 18px;
+  color: var(--text);
+}
+
+.error-boundary__stack {
+  margin: var(--s-3) 0;
+  padding: var(--s-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--down);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-x: auto;
+  max-height: 200px;
+  white-space: pre-wrap;
+}
+
+.error-boundary__actions {
+  display: flex;
+  gap: var(--s-2);
+}
+
 /* ── Company Snapshot ─────────────────────────────────────── */
 
 .company-snapshot {

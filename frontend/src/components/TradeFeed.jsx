@@ -605,12 +605,14 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                       </p>
                     </div>
                     {(() => {
-                      const shares = suggestShares(portfolioValue, riskPct, selected.plan.riskPerShare);
-                      if (!shares) return null;
-                      const dollarsAtRisk = shares * selected.plan.riskPerShare;
-                      const dollarsAtT1 = shares * (selected.plan.target1 - selected.plan.entry);
-                      const dollarsAtT2 = shares * (selected.plan.target2 - selected.plan.entry);
-                      const exposure = shares * selected.plan.entry;
+                      const p = selected.plan;
+                      const shares = suggestShares(portfolioValue, riskPct, p?.riskPerShare);
+                      if (!shares || !p || !Number.isFinite(p.entry)) return null;
+                      const safe = (n) => (Number.isFinite(n) ? n : 0);
+                      const dollarsAtRisk = shares * safe(p.riskPerShare);
+                      const dollarsAtT1 = shares * (safe(p.target1) - safe(p.entry));
+                      const dollarsAtT2 = shares * (safe(p.target2) - safe(p.entry));
+                      const exposure = shares * safe(p.entry);
                       return (
                         <>
                           <div>
