@@ -696,68 +696,6 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
               </div>
             </div>
 
-            {selected.scanner && (
-              <>
-                <div className="detail-card-label">Scanner detail</div>
-                <div className="detail-card radar-detail-block">
-                  <p>
-                    Score <strong className="font-mono">{(selected.scanner.score ?? 0).toFixed(3)}</strong>{" "}
-                    · Confidence <strong className="font-mono">{(selected.scanner.confidence ?? 0).toFixed(2)}</strong>
-                    {" "}· Momentum <strong className="font-mono">{(selected.scanner.momentum ?? 0).toFixed(3)}</strong>
-                    {selected.scanner.scoreDelta != null && (
-                      <> · Δ <span className={`font-mono ${selected.scanner.scoreDelta > 0 ? "up" : selected.scanner.scoreDelta < 0 ? "down" : ""}`}>
-                        {selected.scanner.scoreDelta > 0 ? "+" : ""}{selected.scanner.scoreDelta.toFixed(3)}
-                      </span></>
-                    )}
-                  </p>
-                  <p className="detail-meta">
-                    {selected.scanner.signalLabel} · {selected.scanner.status} · {selected.scanner.riskLevel} risk
-                    {selected.scanner.lastHeadlineAge ? ` · headline ${selected.scanner.lastHeadlineAge}` : ""}
-                  </p>
-                  {selected.scanner.recommendationNote && (
-                    <p className="detail-note">{selected.scanner.recommendationNote}</p>
-                  )}
-                </div>
-                {(selected.scanner.whyNowBullets || []).length > 0 && (
-                  <>
-                    <div className="detail-card-label">Why now</div>
-                    <ul className="radar-drawer-list">
-                      {selected.scanner.whyNowBullets.map((b, i) => <li key={i}>{b}</li>)}
-                    </ul>
-                  </>
-                )}
-                {(selected.scanner.linkedHeadlines || []).length > 0 && (
-                  <>
-                    <div className="detail-card-label">Linked headlines</div>
-                    <ul className="radar-drawer-list">
-                      {selected.scanner.linkedHeadlines.map((h, i) => <li key={i}>{h}</li>)}
-                    </ul>
-                  </>
-                )}
-              </>
-            )}
-
-            {selected.radar && (
-              <>
-                <div className="detail-card-label">Radar detail</div>
-                <div className="detail-card radar-detail-block">
-                  <p>
-                    Opp <strong>{selected.radar.rankedOpportunityScore ?? "—"}</strong> · Jump{" "}
-                    <strong>{selected.radar.jumpScore ?? "—"}</strong> · Cat{" "}
-                    <strong>{selected.radar.catalystScore ?? "—"}</strong> · Risk{" "}
-                    <strong>{selected.radar.riskScore ?? "—"}</strong> · Conf{" "}
-                    <strong>{selected.radar.confidenceScore ?? "—"}</strong>
-                  </p>
-                  <p className="detail-meta">
-                    Agreement {selected.radar.signalAgreementCount ?? 0}/6 · Driver:{" "}
-                    {selected.radar.setupDriver || "—"}
-                  </p>
-                  {selected.radar.signalQualitySummary && (
-                    <p className="detail-note">{selected.radar.signalQualitySummary}</p>
-                  )}
-                </div>
-              </>
-            )}
           </aside>
         </div>
       )}
