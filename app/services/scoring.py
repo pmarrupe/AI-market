@@ -8,10 +8,46 @@ from app.services.llm import llm_json_completion
 from app.services.market_data import MarketSnapshot
 
 
-def _confidence(linked_count: int, sentiment: float) -> float:
+def _news_confidence(linked_count: int, sentiment: float) -> float:
+    """Confidence in the *news* leg only. 0..1."""
     evidence = min(1.0, linked_count / 4)
     signal = min(1.0, abs(sentiment))
     return round((0.7 * evidence) + (0.3 * signal), 3)
+
+
+def _normalize(value: float, scale: float) -> float:
+    """Map a signed value (e.g. day_change=0.04 → 1.0 if scale=0.04) into [-1,1]."""
+    if scale <= 0:
+        return 0.0
+    return max(-1.0, min(1.0, value / scale))
+
+
+def _technical_score(
+    *,
+    momentum: float,
+    day_change: float,
+    liquidity: float,
+    valuation_sanity: float,
+    relative_strength_5d: float = 0.0,
+) -> float:
+    """How energetic is this ticker on the chart, regardless of news? 0..1.
+
+    Magnitude-only on raw momentum (we want the *opportunity*; direction is
+    captured elsewhere). Relative strength vs benchmark is *signed* — only
+    OUTPERFORMING the benchmark adds to the score, underperformance gets 0
+    bonus (but isn't punished). 5d ±5% relative outperformance maps to 1.0.
+    """
+    m_strength = abs(_normalize(momentum, 0.08))
+    dc_strength = abs(_normalize(day_change, 0.04))
+    rs_bonus = max(0.0, _normalize(relative_strength_5d, 0.05))
+    return round(
+        0.40 * m_strength
+        + 0.20 * dc_strength
+        + 0.15 * rs_bonus
+        + 0.15 * max(0.0, min(1.0, liquidity))
+        + 0.10 * max(0.0, min(1.0, valuation_sanity)),
+        3,
+    )
 
 
 def _linked_signal_score(linked: list[Article]) -> float:
@@ -26,7 +62,16 @@ def score_stocks(
     market: dict[str, MarketSnapshot],
     min_confidence: float = 0.45,
     weights: dict | None = None,
+    benchmark: MarketSnapshot | None = None,
 ) -> list[StockScore]:
+    """Three-leg scoring: news + technical + valuation.
+
+    No leg can zero out the others. A ticker with strong technicals but no news
+    will still score in the 0.3–0.6 range; a ticker with strong news AND
+    technicals will score 0.6+. `min_confidence` is now a soft floor — below it
+    the explanation flags low confidence, but the score itself isn't nuked
+    (the user can decide whether to act on it).
+    """
     scored: list[StockScore] = []
     for ticker in tickers:
         linked = [a for a in articles if ticker in a.tickers]
@@ -49,35 +94,61 @@ def score_stocks(
         momentum = snapshot.momentum_5d
         liquidity = snapshot.liquidity_score
         valuation_sanity = snapshot.valuation_sanity
-        confidence = _confidence(len(linked), sentiment)
-        w = weights or {
-            "relevance": 0.35,
-            "sentiment": 0.2,
-            "momentum": 0.2,
-            "liquidity": 0.15,
-            "valuation_sanity": 0.1,
-        }
-        total = round(
-            (float(w.get("relevance", 0.35)) * relevance)
-            + (float(w.get("sentiment", 0.2)) * sentiment)
-            + (float(w.get("momentum", 0.2)) * momentum)
-            + (float(w.get("liquidity", 0.15)) * liquidity)
-            + (float(w.get("valuation_sanity", 0.1)) * valuation_sanity),
-            3,
+
+        news_conf = _news_confidence(len(linked), sentiment)
+        # Relative strength vs benchmark (5d). Positive = outperforming.
+        bench_mom = benchmark.momentum_5d if benchmark else 0.0
+        rs_5d = momentum - bench_mom
+        tech_score = _technical_score(
+            momentum=momentum,
+            day_change=day_change,
+            liquidity=liquidity,
+            valuation_sanity=valuation_sanity,
+            relative_strength_5d=rs_5d,
+        )
+
+        # News leg score (only meaningful when there's actual coverage). We
+        # treat positive sentiment as bullish and negative as bearish; the
+        # *magnitude* of sentiment is captured in news_conf above.
+        bullish_sentiment = max(0.0, sentiment)  # only positive counts here
+        news_score = round(0.65 * relevance + 0.35 * bullish_sentiment, 3)
+
+        # Combine legs as "probability either signal fires" — i.e.
+        #   total = 1 − (1 − news) × (1 − tech)
+        # This way a strong tech score is never *reduced* by mediocre news;
+        # corroborating news only boosts it. Single-leg strength is preserved.
+        if len(linked) >= 2 and news_conf >= min_confidence:
+            news_part = news_score
+            confidence = round(max(news_conf, 0.55), 3)
+            leg = "news+tech"
+        elif len(linked) >= 1:
+            # Some news but lower-confidence — discount the news leg
+            news_part = news_score * 0.6
+            confidence = round(max(news_conf, 0.40 + 0.25 * tech_score), 3)
+            leg = "tech-led"
+        else:
+            news_part = 0.0
+            # No news → confidence climbs with technical signal strength only.
+            confidence = round(0.30 + 0.40 * tech_score, 3)
+            leg = "tech-only"
+
+        # Probability-style blend: either leg firing produces a good score
+        either_fires = 1.0 - (1.0 - news_part) * (1.0 - tech_score)
+        # When neither leg fires meaningfully, fall back to valuation_sanity
+        # as a tiny prior (0.05 floor) so totally-flat stocks still rank.
+        total = round(max(0.05 * valuation_sanity, either_fires), 3)
+
+        total = round(max(0.0, min(1.0, total)), 3)
+        confidence = round(max(0.0, min(1.0, confidence)), 3)
+
+        explanation = (
+            f"[{leg}] news_conf={news_conf} relevance={relevance} sentiment={sentiment} "
+            f"tech_score={tech_score} momentum={momentum} day_change={day_change} "
+            f"rs_5d={round(rs_5d, 4)} liquidity={liquidity} "
+            f"valuation_sanity={valuation_sanity} news_links={len(linked)}."
         )
         if confidence < min_confidence:
-            total = 0.0
-            explanation = (
-                "Insufficient evidence for recommendation confidence threshold. "
-                f"confidence={confidence}, threshold={min_confidence}, news links={len(linked)}."
-            )
-        else:
-            explanation = (
-                "Score uses relevance, sentiment, 5d momentum, liquidity, and valuation sanity checks. "
-                f"relevance={relevance}, sentiment={sentiment}, momentum={momentum}, "
-                f"liquidity={liquidity}, valuation_sanity={valuation_sanity}, linked_signal={linked_signal}. "
-                f"News links found: {len(linked)}."
-            )
+            explanation += f" (confidence below threshold {min_confidence})"
         scored.append(
             StockScore(
                 ticker=ticker,

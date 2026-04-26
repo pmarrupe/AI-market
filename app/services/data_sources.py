@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import logging
 import os
 import re
+import time
 from urllib.parse import urlparse
 
 import feedparser
@@ -36,7 +37,9 @@ def _load_json_env(name: str, default):
         return default
 
 
-TICKER_KEYWORDS = _load_json_env(
+# Hand-curated overrides — keywords beyond just the company name. These are
+# layered on top of the auto-built S&P 500 map below.
+_OVERRIDE_KEYWORDS = _load_json_env(
     "TICKER_KEYWORDS_JSON",
     {
         "NVDA": ["nvidia", "gpu", "cuda"],
@@ -49,6 +52,91 @@ TICKER_KEYWORDS = _load_json_env(
         "ASML": ["asml", "lithography"],
     },
 )
+
+
+def _strip_company_suffix(name: str) -> str:
+    """Strip common corporate suffixes so 'NVIDIA Corporation' → 'NVIDIA'."""
+    cleaned = name.strip()
+    # Repeatedly strip suffixes until none match
+    suffixes = [
+        " corporation", " corp.", " corp", " incorporated", " inc.", " inc",
+        " company", " co.", " co", " ltd.", " ltd", " plc", " holdings",
+        " group", " limited", " sa", " ag", " nv", " s.a.", " p.l.c.",
+        ", inc.", ", inc", " & co.", " & co",
+    ]
+    lowered = cleaned.lower()
+    for suf in suffixes:
+        if lowered.endswith(suf):
+            cleaned = cleaned[: len(cleaned) - len(suf)].rstrip(" ,.")
+            lowered = cleaned.lower()
+    # Drop parenthetical class designations: "Alphabet (Class A)" → "Alphabet"
+    cleaned = re.sub(r"\s*\([^)]*\)\s*$", "", cleaned).strip()
+    return cleaned
+
+
+# Tickers that ARE common English words — we exclude their symbols from the
+# keyword map and rely on company-name matching for these.
+_COMMON_WORD_TICKERS = frozenset({
+    "ALL", "KEY", "HAS", "MAS", "BEN", "DAY", "ROL", "WST", "MAA", "PAY",
+    "GOOD", "FORD", "BANK", "CASH", "RIDE", "WORK", "PLAY", "EAT", "FUN",
+    "ON", "IT", "GO", "SO", "OK", "NO", "ARE", "WE", "BE", "DO",
+    "NOW", "YES", "LOW", "BIG", "TOP", "MAX", "BUY", "SELL", "OPEN", "CLOSE",
+    "BAR", "BOX", "CAR", "JOB", "MAP", "NET", "SUN", "CAT", "DOG", "BUG",
+})
+
+# Common English words that show up as the first word of a company name —
+# we don't want "Smith reports..." matching every company starting with Smith.
+_COMMON_WORDS = frozenset({
+    "first", "general", "global", "national", "international", "american",
+    "united", "northern", "southern", "eastern", "western", "central",
+    "smith", "jones", "white", "brown",
+})
+
+
+def _build_ticker_keyword_map() -> dict[str, list[str]]:
+    """Build a {ticker: [keywords]} map covering the S&P 500 universe.
+
+    Each ticker gets at minimum: lowercase ticker symbol (when distinctive) +
+    lowercase company name + lowercase short form (suffix stripped). Symbols
+    in `_COMMON_WORD_TICKERS` are excluded; those tickers must match via
+    company name only.
+    """
+    out: dict[str, list[str]] = {}
+    try:
+        from app.services.sp500 import load_sp500_universe
+        rows = load_sp500_universe()
+    except Exception:
+        rows = []
+    for row in rows:
+        ticker = (row.get("ticker") or "").strip().upper()
+        name = (row.get("name") or "").strip()
+        if not ticker:
+            continue
+        kws: set[str] = set()
+        # Use the symbol as a keyword only if it's distinctive (≥4 chars and
+        # not a common English word).
+        if len(ticker) >= 4 and ticker not in _COMMON_WORD_TICKERS:
+            kws.add(ticker.lower())
+        if name:
+            kws.add(name.lower())
+            short = _strip_company_suffix(name)
+            if short and short.lower() != name.lower() and len(short) >= 4:
+                kws.add(short.lower())
+            # First word of the company name as a standalone keyword
+            # (so "JPMorgan upgrades..." matches JPM via "jpmorgan").
+            first_word = (short or name).split()[0] if (short or name).split() else ""
+            if first_word and len(first_word) >= 5 and first_word.lower() not in _COMMON_WORDS:
+                kws.add(first_word.lower())
+        out[ticker] = sorted(k for k in kws if len(k) >= 3)
+    # Layer hand-curated overrides on top (they win on conflict + add tags)
+    for ticker, extra_kws in _OVERRIDE_KEYWORDS.items():
+        existing = set(out.get(ticker, []))
+        existing.update(k.lower() for k in extra_kws)
+        out[ticker] = sorted(existing)
+    return out
+
+
+TICKER_KEYWORDS = _build_ticker_keyword_map()
 
 POSITIVE_WORDS = set(
     _load_json_env(
@@ -92,13 +180,41 @@ def _sentiment_score(text: str) -> float:
     return round((pos - neg) / total, 3)
 
 
+_KEYWORD_PATTERN_CACHE: dict[str, "re.Pattern[str]"] = {}
+
+
+def _kw_pattern(kw: str) -> "re.Pattern[str]":
+    """Word-boundary regex for a keyword, cached. Multi-word keywords use
+    `\\b` only at the outer edges so internal whitespace remains literal."""
+    pat = _KEYWORD_PATTERN_CACHE.get(kw)
+    if pat is None:
+        pat = re.compile(rf"\b{re.escape(kw)}\b")
+        _KEYWORD_PATTERN_CACHE[kw] = pat
+    return pat
+
+
 def _extract_tickers(text: str) -> list[str]:
+    """Extract tickers from text using word-boundary keyword matching.
+
+    Word boundaries prevent false positives like "WALMART" matching the MAR
+    ticker (substring "mar"). Returns a deduped list preserving insertion
+    order for stable behaviour.
+    """
     lowered = text.lower()
-    matches = []
+    matches: list[str] = []
+    seen: set[str] = set()
     for ticker, keywords in TICKER_KEYWORDS.items():
+        if ticker in seen:
+            continue
         kw_list = keywords if isinstance(keywords, (list, tuple, set)) else [keywords]
-        if any(str(keyword).lower() in lowered for keyword in kw_list):
-            matches.append(ticker)
+        for keyword in kw_list:
+            kw = str(keyword).lower().strip()
+            if not kw or len(kw) < 3:
+                continue
+            if _kw_pattern(kw).search(lowered):
+                matches.append(ticker)
+                seen.add(ticker)
+                break
     return matches
 
 
@@ -155,19 +271,37 @@ def _build_article(
     published_at: datetime,
     excerpt: str,
     cluster_map: dict[str, int],
+    pre_tickers: list[str] | None = None,
 ) -> Article:
+    """Build an Article. If `pre_tickers` is given (e.g. yfinance per-ticker
+    news), use those directly *plus* anything else extracted from the text;
+    otherwise extract from text alone."""
     text_blob = f"{title} {excerpt}"
     cluster_key = _title_cluster_key(title)
     if cluster_key not in cluster_map:
         cluster_map[cluster_key] = len(cluster_map) + 1
     cluster_id = f"cluster-{cluster_map[cluster_key]:03d}"
+    extracted = _extract_tickers(text_blob)
+    if pre_tickers:
+        # Union, preserving order: pre-tagged first, then anything additional
+        # the text extractor finds.
+        seen: set[str] = set()
+        merged: list[str] = []
+        for t in list(pre_tickers) + extracted:
+            up = (t or "").strip().upper()
+            if up and up not in seen:
+                seen.add(up)
+                merged.append(up)
+        tickers = merged
+    else:
+        tickers = extracted
     return Article(
         title=title,
         source=source,
         url=link,
         published_at=published_at,
         summary="",
-        tickers=_extract_tickers(text_blob),
+        tickers=tickers,
         sentiment=_sentiment_score(text_blob),
         cluster_id=cluster_id,
         catalyst_type=_catalyst_type(text_blob),
@@ -213,6 +347,79 @@ def _fetch_newsapi_articles(
     return out
 
 
+def _fetch_one_ticker_news(sym: str, max_items: int) -> list[dict[str, object]]:
+    """Fetch news for a single ticker. Used by the parallel batch path."""
+    try:
+        import yfinance as yf
+    except ImportError:
+        return []
+    try:
+        news = yf.Ticker(sym).news or []
+    except Exception:
+        return []
+    out: list[dict[str, object]] = []
+    for item in news[:max_items]:
+        content = item.get("content") if isinstance(item, dict) else None
+        if not content:
+            continue
+        title = str(content.get("title") or "").strip()
+        summary = str(content.get("summary") or content.get("description") or "").strip()
+        pub_date = str(content.get("pubDate") or content.get("displayTime") or "")
+        provider = (content.get("provider") or {})
+        source_name = str(provider.get("displayName") or provider.get("sourceId") or "yfinance")
+        link_obj = content.get("canonicalUrl") or content.get("clickThroughUrl") or {}
+        link = str(link_obj.get("url") or "").strip() if isinstance(link_obj, dict) else ""
+        if not title or not link:
+            continue
+        out.append({
+            "title": title,
+            "url": link,
+            "source": source_name.lower(),
+            "published_at": pub_date,
+            "excerpt": _clean_text(summary)[:500],
+            "tickers": [sym],
+        })
+    return out
+
+
+def _fetch_yfinance_ticker_news(
+    tickers: list[str], *, max_per_ticker: int = 5,
+    max_workers: int = 12, per_call_timeout_s: float = 6.0,
+) -> list[dict[str, object]]:
+    """Per-ticker news from yfinance — articles arrive PRE-TAGGED with the
+    ticker we fetched them for, so no keyword matching is needed.
+
+    Parallelized via ThreadPoolExecutor; capped per-call timeout so a hung
+    yfinance request can't drag down the whole batch.
+    """
+    syms = [(t or "").strip().upper() for t in (tickers or []) if (t or "").strip()]
+    syms = list(dict.fromkeys(syms))
+    if not syms:
+        return []
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutTimeout
+
+    started = time.perf_counter()
+    out: list[dict[str, object]] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        future_to_sym = {ex.submit(_fetch_one_ticker_news, sym, max_per_ticker): sym for sym in syms}
+        for fut in as_completed(future_to_sym):
+            sym = future_to_sym[fut]
+            try:
+                rows = fut.result(timeout=per_call_timeout_s)
+                out.extend(rows)
+            except FutTimeout:
+                logger.warning("yfinance news timeout for %s (>%.1fs)", sym, per_call_timeout_s)
+            except Exception:
+                logger.warning("yfinance news error for %s", sym, exc_info=True)
+    elapsed = time.perf_counter() - started
+    logger.info(
+        "yfinance per-ticker news (parallel): tickers=%d articles=%d elapsed_s=%.1f",
+        len(syms), len(out), elapsed,
+    )
+    return out
+
+
 def _fetch_finnhub_articles(
     client: httpx.Client, api_key: str, max_count: int
 ) -> list[dict[str, str]]:
@@ -246,6 +453,38 @@ def _fetch_finnhub_articles(
     return out
 
 
+def fetch_ticker_news(
+    tickers: list[str], *, max_per_ticker: int = 4
+) -> list[Article]:
+    """Fetch yfinance per-ticker news AFTER the universe is known.
+
+    Returns Article objects pre-tagged with their source ticker. Designed to
+    run as a second pass alongside `fetch_articles` (which gathers general
+    news + RSS + Finnhub global, none of which is ticker-aware)."""
+    if not tickers:
+        return []
+    rows = _fetch_yfinance_ticker_news(list(tickers), max_per_ticker=max_per_ticker)
+    cluster_map: dict[str, int] = {}
+    seen_urls: set[str] = set()
+    articles: list[Article] = []
+    for row in rows:
+        if row["url"] in seen_urls:
+            continue
+        articles.append(
+            _build_article(
+                title=row["title"],
+                link=row["url"],
+                source=row["source"],
+                published_at=_parse_datetime_text(row["published_at"]),
+                excerpt=row["excerpt"],
+                cluster_map=cluster_map,
+                pre_tickers=row.get("tickers") or [],
+            )
+        )
+        seen_urls.add(row["url"])
+    return articles
+
+
 def fetch_articles(
     feed_urls: list[str],
     max_per_feed: int = 10,
@@ -253,6 +492,8 @@ def fetch_articles(
     newsapi_api_key: str = "",
     finnhub_enabled: bool = False,
     finnhub_api_key: str = "",
+    yfinance_tickers: list[str] | None = None,
+    yfinance_max_per_ticker: int = 4,
 ) -> list[Article]:
     logger.info(
         "Article refresh started: rss_sources=%s newsapi_enabled=%s finnhub_enabled=%s",
@@ -345,6 +586,34 @@ def fetch_articles(
                 logger.warning("Finnhub fetch failed", exc_info=True)
         elif finnhub_enabled:
             logger.warning("Finnhub enabled but api key missing")
+
+    # yfinance per-ticker news — runs OUTSIDE the httpx client (yfinance has
+    # its own session). Articles arrive pre-tagged with the ticker, so they
+    # bypass the keyword extractor.
+    if yfinance_tickers:
+        try:
+            yf_rows = _fetch_yfinance_ticker_news(
+                list(yfinance_tickers), max_per_ticker=yfinance_max_per_ticker
+            )
+            added = 0
+            for row in yf_rows:
+                if row["url"] in seen_urls:
+                    continue
+                article = _build_article(
+                    title=row["title"],
+                    link=row["url"],
+                    source=row["source"],
+                    published_at=_parse_datetime_text(row["published_at"]),
+                    excerpt=row["excerpt"],
+                    cluster_map=cluster_map,
+                    pre_tickers=row.get("tickers") or [],
+                )
+                articles.append(article)
+                seen_urls.add(row["url"])
+                added += 1
+            logger.info("yfinance ticker news merged: added=%s", added)
+        except Exception:
+            logger.warning("yfinance ticker news failed", exc_info=True)
 
     cluster_counts: dict[str, int] = {}
     cluster_sources: dict[str, set[str]] = {}

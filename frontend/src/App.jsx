@@ -4,18 +4,21 @@ import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import KPIGrid from "./components/KPIGrid";
 import HeroSearch from "./components/HeroSearch";
-import StockScanner from "./components/StockScanner";
-import ExplosiveMoveRadar from "./components/ExplosiveMoveRadar";
-import StockDashboard from "./components/StockDashboard";
+import TradeFeed from "./components/TradeFeed";
 import SummaryBar from "./components/SummaryBar";
 import StartupFunding from "./components/StartupFunding";
 import ProductLaunches from "./components/ProductLaunches";
 import Research from "./components/Research";
+import WhatChanged from "./components/WhatChanged";
+import Portfolio from "./components/Portfolio";
+import TrackRecord from "./components/TrackRecord";
+import AlertsEngine from "./components/AlertsEngine";
 export default function App() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeSection, setActiveSection] = useState("overview");
+  const [scannerSortIntent, setScannerSortIntent] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -61,6 +64,13 @@ export default function App() {
 
         {data && (
           <>
+            <TrackRecord />
+
+            <WhatChanged
+              stockRows={data.stock_rows}
+              onChipAction={(intent) => setScannerSortIntent({ intent, at: Date.now() })}
+            />
+
             <KPIGrid data={data} />
 
             <section className="panel disclaimer">
@@ -73,20 +83,14 @@ export default function App() {
 
             <HeroSearch />
 
-            <StockScanner
-              rows={data.stock_rows}
-              sectors={data.stock_sectors}
-              signalLabels={data.stock_signal_labels}
-              riskLevels={data.stock_risk_levels}
-              timeHorizons={data.stock_time_horizons}
-              statuses={data.stock_statuses}
-              isLoading={loading}
+            <AlertsEngine />
+
+            <Portfolio />
+
+            <TradeFeed
+              sortIntent={scannerSortIntent}
               onRequestRefresh={loadData}
             />
-
-            <ExplosiveMoveRadar />
-
-            <StockDashboard rows={data.stock_market_rows} />
 
             <SummaryBar data={data} />
 

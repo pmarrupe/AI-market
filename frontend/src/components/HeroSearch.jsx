@@ -1,5 +1,41 @@
 import { useState, useRef, useEffect } from "react";
-import { searchSP500, getSP500Opinion, fetchPriceForecast } from "../api";
+import { searchSP500, getSP500Opinion, fetchPriceForecast, fetchPortfolio } from "../api";
+import TradePlanChart from "./TradePlanChart";
+
+const PORTFOLIO_KEY = "ai_market.portfolio_value";
+const RISK_PCT_KEY = "ai_market.portfolio_risk_pct";
+
+function readNum(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    if (!v) return fallback;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function suggestShares(portfolioValue, riskPct, riskPerShare) {
+  if (!portfolioValue || !riskPct || !riskPerShare) return null;
+  const dollars = portfolioValue * (riskPct / 100);
+  const n = Math.floor(dollars / riskPerShare);
+  return n > 0 ? n : null;
+}
+
+function indicatorTone(label) {
+  if (label === "MACD↑" || label === "Oversold" || label === "20d HIGH") return "pos";
+  if (label === "MACD↓" || label === "Overbought" || label === "20d LOW") return "neg";
+  if (label && label.startsWith("VOL ")) return label === "VOL ↓" ? "neg" : "pos";
+  return "neutral";
+}
+
+function convictionTone(c) {
+  if (c === "High") return "high";
+  if (c === "Med") return "mid";
+  if (c === "Low") return "low";
+  return "neutral";
+}
 
 export default function HeroSearch() {
   const [query, setQuery] = useState("");
@@ -9,6 +45,8 @@ export default function HeroSearch() {
   const [forecast, setForecast] = useState(null);
   const [forecastLoading, setForecastLoading] = useState(false);
   const [forecastError, setForecastError] = useState(null);
+  const [tradePlan, setTradePlan] = useState(null);
+  const [tradePlanLoading, setTradePlanLoading] = useState(false);
   const debounceRef = useRef(null);
   const wrapRef = useRef(null);
 
@@ -44,6 +82,7 @@ export default function HeroSearch() {
     setSuggestions([]);
     setForecast(null);
     setForecastError(null);
+    setTradePlan(null);
     setLoading(true);
     setOpinion(null);
     let loaded = null;
@@ -56,7 +95,16 @@ export default function HeroSearch() {
       setLoading(false);
     }
     if (!loaded || loaded.error) return;
+    // Kick off trade plan + forecast in parallel
+    setTradePlanLoading(true);
     setForecastLoading(true);
+    fetchPortfolio([ticker])
+      .then((res) => {
+        const item = (res?.items || []).find((i) => i.ticker === ticker.toUpperCase());
+        setTradePlan(item || null);
+      })
+      .catch(() => setTradePlan(null))
+      .finally(() => setTradePlanLoading(false));
     try {
       const fc = await fetchPriceForecast(ticker);
       setForecast(fc);
@@ -213,6 +261,108 @@ export default function HeroSearch() {
               </ul>
             </div>
           )}
+
+          <div className="hero-trade-plan">
+            <span className="opinion-section-label">Trade plan</span>
+            {tradePlanLoading && !tradePlan && (
+              <p className="price-forecast-loading">Computing trade plan…</p>
+            )}
+            {tradePlan && (
+              <>
+                <div className="hero-trade-plan__chips">
+                  <span className={`radar-score radar-score--${convictionTone(tradePlan.conviction)}`}>
+                    Conviction: {tradePlan.conviction}
+                  </span>
+                  <span className="pill radar-setup-pill">{tradePlan.setup}</span>
+                  <span className="pill">Horizon: {tradePlan.horizon}</span>
+                  {tradePlan.earnings && tradePlan.earnings.daysToNext != null && (
+                    <span
+                      className={`trade-feed__earnings${
+                        tradePlan.earnings.daysToNext <= 7 ? " trade-feed__earnings--soon" : ""
+                      }`}
+                      title={`Next earnings ${tradePlan.earnings.nextDate || ""}`}
+                    >
+                      ⚡ Earnings in {tradePlan.earnings.daysToNext}d
+                    </span>
+                  )}
+                  {(tradePlan.plan?.indicators || []).map((ind) => (
+                    <span
+                      key={ind}
+                      className={`indicator-chip indicator-chip--${indicatorTone(ind)}`}
+                    >
+                      {ind}
+                    </span>
+                  ))}
+                </div>
+
+                {tradePlan.plan && (
+                  <>
+                    <div className="hero-trade-plan__chart">
+                      <TradePlanChart plan={tradePlan.plan} currentPrice={tradePlan.price} />
+                      <div className="trade-feed__chart-legend">
+                        <span><i style={{ background: "#5dd39e" }} />Targets</span>
+                        <span><i style={{ background: "#b0b1bf" }} />Entry</span>
+                        <span><i style={{ background: "#ef8b7a" }} />Stop</span>
+                        <span><i style={{ background: "#8b9ff8" }} />Price (60d)</span>
+                      </div>
+                    </div>
+
+                    <div className="hero-trade-plan__grid">
+                      <div><span className="opinion-metric-label">Entry</span><p className="opinion-metric-value">${tradePlan.plan.entry.toFixed(2)}</p></div>
+                      <div><span className="opinion-metric-label">Stop</span><p className="opinion-metric-value down">${tradePlan.plan.stop.toFixed(2)}</p></div>
+                      <div><span className="opinion-metric-label">Target 1</span><p className="opinion-metric-value up">${tradePlan.plan.target1.toFixed(2)}</p></div>
+                      <div><span className="opinion-metric-label">Target 2</span><p className="opinion-metric-value up">${tradePlan.plan.target2.toFixed(2)}</p></div>
+                      <div><span className="opinion-metric-label">ATR(14)</span><p className="opinion-metric-value">{tradePlan.plan.atr14.toFixed(3)}</p></div>
+                      <div><span className="opinion-metric-label">R:R</span><p className="opinion-metric-value">{tradePlan.plan.rewardRisk1 ?? "—"}× / {tradePlan.plan.rewardRisk2 ?? "—"}×</p></div>
+                      {tradePlan.plan.rsi14 != null && (
+                        <div>
+                          <span className="opinion-metric-label">RSI(14)</span>
+                          <p className={`opinion-metric-value ${
+                            tradePlan.plan.rsi14 >= 70 ? "down" :
+                            tradePlan.plan.rsi14 <= 30 ? "up" : ""
+                          }`}>
+                            {tradePlan.plan.rsi14.toFixed(1)}
+                          </p>
+                        </div>
+                      )}
+                      {tradePlan.plan.macd != null && (
+                        <div>
+                          <span className="opinion-metric-label">MACD / Signal</span>
+                          <p className={`opinion-metric-value ${
+                            tradePlan.plan.macdHistogram > 0 ? "up" :
+                            tradePlan.plan.macdHistogram < 0 ? "down" : ""
+                          }`}>
+                            {tradePlan.plan.macd.toFixed(2)} / {tradePlan.plan.macdSignal.toFixed(2)}
+                          </p>
+                        </div>
+                      )}
+                      <div>
+                        <span className="opinion-metric-label">Risk / share</span>
+                        <p className="opinion-metric-value">${tradePlan.plan.riskPerShare.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <span className="opinion-metric-label">Suggested shares</span>
+                        <p className="opinion-metric-value">
+                          {suggestShares(
+                            readNum(PORTFOLIO_KEY, 10000),
+                            readNum(RISK_PCT_KEY, 1),
+                            tradePlan.plan.riskPerShare,
+                          ) ?? "—"}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="price-forecast-footnote">{tradePlan.plan.note}</p>
+                  </>
+                )}
+
+                {!tradePlan.plan && (
+                  <p className="price-forecast-loading">
+                    No trade plan — historical bars unavailable for this ticker.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
 
           <div className="price-forecast-block">
             <span className="opinion-section-label">Price outlook (historical daily data)</span>

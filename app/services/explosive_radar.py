@@ -931,17 +931,38 @@ def build_explosive_radar_payload(
 ) -> list[dict[str, Any]]:
     w = weights or load_explosive_radar_weights()
     rows: list[dict[str, Any]] = []
-    with httpx.Client(timeout=18.0, follow_redirects=True) as client:
-        for stock in stocks:
-            t = stock.ticker.upper()
-            linked = _articles_for_ticker(articles, t)
-            bars = fetch_daily_bars_for_radar(
-                t,
-                finnhub_enabled=finnhub_enabled,
-                finnhub_api_key=finnhub_api_key,
-                client=client,
-            )
-            rows.append(compute_explosive_radar_row(t, stock, bars, linked, w))
+
+    # Parallelize bar fetches — was sequential, made cold-cache trade-feed
+    # loads take 10+ minutes for 100 tickers.
+    from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutTimeout
+
+    def _fetch_bars(t: str):
+        with httpx.Client(timeout=8.0, follow_redirects=True) as client:
+            try:
+                return t, fetch_daily_bars_for_radar(
+                    t,
+                    finnhub_enabled=finnhub_enabled,
+                    finnhub_api_key=finnhub_api_key,
+                    client=client,
+                )
+            except Exception:
+                return t, None
+
+    bars_by_ticker: dict[str, Any] = {}
+    with ThreadPoolExecutor(max_workers=12) as ex:
+        futures = [ex.submit(_fetch_bars, s.ticker.upper()) for s in stocks]
+        for fut in as_completed(futures):
+            try:
+                ticker, bars = fut.result(timeout=10.0)
+                bars_by_ticker[ticker] = bars
+            except (FutTimeout, Exception):
+                pass
+
+    for stock in stocks:
+        t = stock.ticker.upper()
+        linked = _articles_for_ticker(articles, t)
+        bars = bars_by_ticker.get(t)
+        rows.append(compute_explosive_radar_row(t, stock, bars, linked, w))
     sort_radar_rows(rows, sort_by)
     return rows
 

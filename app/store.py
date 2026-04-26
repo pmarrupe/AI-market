@@ -115,6 +115,43 @@ class Store:
             self._ensure_column(
                 conn, "stock_scores", "valuation_sanity", "REAL NOT NULL DEFAULT 0.0"
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS daily_bars_cache (
+                    ticker TEXT PRIMARY KEY,
+                    bars_json TEXT NOT NULL,
+                    source TEXT NOT NULL DEFAULT '',
+                    fetched_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS earnings_cache (
+                    ticker TEXT PRIMARY KEY,
+                    events_json TEXT NOT NULL,
+                    fetched_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS trade_plan_audit (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ticker TEXT NOT NULL,
+                    entry REAL NOT NULL,
+                    stop REAL NOT NULL,
+                    target1 REAL NOT NULL,
+                    target2 REAL NOT NULL,
+                    atr REAL NOT NULL,
+                    conviction TEXT NOT NULL DEFAULT '',
+                    setup TEXT NOT NULL DEFAULT '',
+                    outcome TEXT NOT NULL DEFAULT 'open',
+                    created_at TEXT NOT NULL,
+                    resolved_at TEXT
+                )
+                """
+            )
 
     def _ensure_column(
         self, conn: sqlite3.Connection, table_name: str, column_name: str, column_type: str
@@ -394,3 +431,209 @@ class Store:
                 """
             ).fetchall()
         return {row[0]: row[1] for row in rows}
+
+    def get_cached_bars(
+        self, ticker: str, max_age_hours: float = 12.0
+    ) -> list[dict] | None:
+        """Return cached OHLC bars (oldest→newest) if fresh enough, else None."""
+        sym = (ticker or "").strip().upper()
+        if not sym:
+            return None
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT bars_json, fetched_at FROM daily_bars_cache WHERE ticker = ?",
+                (sym,),
+            ).fetchone()
+        if not row:
+            return None
+        try:
+            fetched = _from_iso(row[1])
+        except Exception:
+            return None
+        age_hours = (datetime.now(timezone.utc) - fetched).total_seconds() / 3600
+        if age_hours > max_age_hours:
+            return None
+        try:
+            bars = json.loads(row[0])
+            return bars if isinstance(bars, list) else None
+        except Exception:
+            return None
+
+    def set_cached_bars(self, ticker: str, bars: list[dict], source: str = "") -> None:
+        sym = (ticker or "").strip().upper()
+        if not sym or not bars:
+            return
+        payload = json.dumps(bars)
+        now_iso = _to_iso(datetime.now(timezone.utc))
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO daily_bars_cache (ticker, bars_json, source, fetched_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(ticker) DO UPDATE SET
+                    bars_json = excluded.bars_json,
+                    source = excluded.source,
+                    fetched_at = excluded.fetched_at
+                """,
+                (sym, payload, source, now_iso),
+            )
+
+    def get_cached_earnings(
+        self, ticker: str, max_age_hours: float = 24.0
+    ) -> list[dict] | None:
+        sym = (ticker or "").strip().upper()
+        if not sym:
+            return None
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT events_json, fetched_at FROM earnings_cache WHERE ticker = ?",
+                (sym,),
+            ).fetchone()
+        if not row:
+            return None
+        try:
+            fetched = _from_iso(row[1])
+        except Exception:
+            return None
+        age_hours = (datetime.now(timezone.utc) - fetched).total_seconds() / 3600
+        if age_hours > max_age_hours:
+            return None
+        try:
+            events = json.loads(row[0])
+            return events if isinstance(events, list) else None
+        except Exception:
+            return None
+
+    def set_cached_earnings(self, ticker: str, events: list[dict]) -> None:
+        sym = (ticker or "").strip().upper()
+        if not sym:
+            return
+        payload = json.dumps(events)
+        now_iso = _to_iso(datetime.now(timezone.utc))
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO earnings_cache (ticker, events_json, fetched_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(ticker) DO UPDATE SET
+                    events_json = excluded.events_json,
+                    fetched_at = excluded.fetched_at
+                """,
+                (sym, payload, now_iso),
+            )
+
+    def record_trade_plan(
+        self,
+        *,
+        ticker: str,
+        entry: float,
+        stop: float,
+        target1: float,
+        target2: float,
+        atr: float,
+        conviction: str = "",
+        setup: str = "",
+    ) -> int | None:
+        sym = (ticker or "").strip().upper()
+        if not sym:
+            return None
+        now_iso = _to_iso(datetime.now(timezone.utc))
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO trade_plan_audit
+                (ticker, entry, stop, target1, target2, atr, conviction, setup, outcome, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+                """,
+                (sym, entry, stop, target1, target2, atr, conviction, setup, now_iso),
+            )
+            return cur.lastrowid
+
+    def record_trade_plan_if_no_open(
+        self,
+        *,
+        ticker: str,
+        entry: float,
+        stop: float,
+        target1: float,
+        target2: float,
+        atr: float,
+        conviction: str = "",
+        setup: str = "",
+    ) -> int | None:
+        """Record a new open plan only if there isn't already an open plan for
+        this ticker. Returns the new plan id, or None if skipped."""
+        sym = (ticker or "").strip().upper()
+        if not sym:
+            return None
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM trade_plan_audit WHERE ticker = ? AND outcome = 'open' LIMIT 1",
+                (sym,),
+            ).fetchone()
+            if row:
+                return None
+        return self.record_trade_plan(
+            ticker=sym, entry=entry, stop=stop, target1=target1, target2=target2,
+            atr=atr, conviction=conviction, setup=setup,
+        )
+
+    def get_open_trade_plans(self) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, ticker, entry, stop, target1, target2, atr, conviction, setup, created_at
+                FROM trade_plan_audit
+                WHERE outcome = 'open'
+                ORDER BY created_at DESC
+                """
+            ).fetchall()
+        return [
+            {
+                "id": r[0], "ticker": r[1], "entry": r[2], "stop": r[3],
+                "target1": r[4], "target2": r[5], "atr": r[6],
+                "conviction": r[7], "setup": r[8], "created_at": r[9],
+            }
+            for r in rows
+        ]
+
+    def resolve_trade_plan(self, plan_id: int, outcome: str) -> None:
+        now_iso = _to_iso(datetime.now(timezone.utc))
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE trade_plan_audit SET outcome = ?, resolved_at = ? WHERE id = ?",
+                (outcome, now_iso, plan_id),
+            )
+
+    def get_trade_plan_stats(self, since_days: int = 30) -> dict:
+        """Summary of resolved trade plans over the window."""
+        from datetime import timedelta
+        cutoff_iso = _to_iso(datetime.now(timezone.utc) - timedelta(days=since_days))
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT outcome, COUNT(*)
+                FROM trade_plan_audit
+                WHERE created_at >= ?
+                GROUP BY outcome
+                """,
+                (cutoff_iso,),
+            ).fetchall()
+        totals = {r[0]: r[1] for r in rows}
+        total = sum(totals.values())
+        wins = totals.get("target_hit", 0)
+        losses = totals.get("stop_hit", 0)
+        expired = totals.get("expired", 0)
+        open_ = totals.get("open", 0)
+        resolved = wins + losses + expired
+        win_rate = (wins / resolved) if resolved > 0 else None
+        return {
+            "window_days": since_days,
+            "total": total,
+            "open": open_,
+            "resolved": resolved,
+            "wins": wins,
+            "losses": losses,
+            "expired": expired,
+            "win_rate": round(win_rate, 3) if win_rate is not None else None,
+        }

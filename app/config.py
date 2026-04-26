@@ -47,6 +47,8 @@ class Settings:
     dynamic_universe_min_fresh: int
     top_performer_pool_max: int
     top_performer_min_price: float
+    exclude_etfs: bool
+    min_dollar_volume: float
     newsapi_enabled: bool
     newsapi_api_key: str
     finnhub_enabled: bool
@@ -139,7 +141,7 @@ def get_settings() -> Settings:
             ),
         ),
         dynamic_universe_enabled=_as_bool(os.getenv("DYNAMIC_UNIVERSE_ENABLED"), default=True),
-        dynamic_universe_size=int(os.getenv("DYNAMIC_UNIVERSE_SIZE", "12")),
+        dynamic_universe_size=int(os.getenv("DYNAMIC_UNIVERSE_SIZE", "50")),
         dynamic_universe_explore_mode=_as_bool(
             os.getenv("DYNAMIC_UNIVERSE_EXPLORE_MODE"), default=True
         ),
@@ -148,6 +150,8 @@ def get_settings() -> Settings:
         ),
         dynamic_universe_min_fresh=int(os.getenv("DYNAMIC_UNIVERSE_MIN_FRESH", "3")),
         top_performer_pool_max=int(os.getenv("TOP_PERFORMER_POOL_MAX", "100")),
+        exclude_etfs=_as_bool(os.getenv("EXCLUDE_ETFS"), default=True),
+        min_dollar_volume=float(os.getenv("MIN_DOLLAR_VOLUME", "20000000")),
         top_performer_min_price=float(os.getenv("TOP_PERFORMER_MIN_PRICE", "2.0")),
         newsapi_enabled=_as_bool(os.getenv("NEWSAPI_ENABLED"), default=False),
         newsapi_api_key=os.getenv("NEWSAPI_API_KEY", ""),

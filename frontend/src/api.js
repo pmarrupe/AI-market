@@ -28,6 +28,32 @@ export async function getSP500Opinion(ticker) {
   return res.json();
 }
 
+export async function fetchTrackRecord(windowDays = 30) {
+  const res = await fetch(`${BASE}/api/track-record?window_days=${windowDays}`);
+  if (!res.ok) throw new Error(`Track record fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchPortfolio(tickers = []) {
+  if (!tickers || tickers.length === 0) return { items: [] };
+  const q = encodeURIComponent(tickers.join(","));
+  const res = await fetch(`${BASE}/api/portfolio?tickers=${q}`);
+  if (!res.ok) throw new Error(`Portfolio fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchTradeFeed(query = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(query).forEach(([k, v]) => {
+    if (v === undefined || v === null || v === "") return;
+    qs.set(k, String(v));
+  });
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${BASE}/api/trade-feed${suffix}`);
+  if (!res.ok) throw new Error(`Trade feed failed: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchExplosiveRadar(query = {}) {
   const qs = new URLSearchParams();
   Object.entries(query).forEach(([k, v]) => {

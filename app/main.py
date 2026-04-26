@@ -16,7 +16,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
 from app.models import StockScore
-from app.services.data_sources import fetch_articles, source_health
+from app.services.data_sources import fetch_articles, fetch_ticker_news, source_health
 from app.services.explosive_radar import (
     build_explosive_radar_payload,
     build_explosive_radar_row_for_ticker,
@@ -41,6 +41,11 @@ from app.services.price_forecast import (
     fetch_finnhub_daily_series_with_detail,
 )
 from app.services.opportunity_signals import build_opportunity_view
+from app.services.trade_feed import build_trade_feed, sort_items
+from app.services.trade_plan import compute_trade_plan
+from app.services.market_data import fetch_stooq_ohlc, fetch_yfinance_ohlc, fetch_yfinance_ohlc_batch
+from app.services.earnings import fetch_earnings_events, days_to_next_event
+from app.services.plan_resolver import resolve_open_plans, compute_win_stats
 from app.services.scoring import llm_enhance_scores, score_stocks
 from app.services.summarizer import summarize_batch
 from app.services.blend_universe import build_blend_universe
@@ -222,22 +227,63 @@ def refresh_data() -> dict[str, object]:
             target_size=settings.dynamic_universe_size,
             pool_max=settings.top_performer_pool_max,
             min_price=settings.top_performer_min_price,
+            exclude_etfs=settings.exclude_etfs,
+            min_dollar_volume=settings.min_dollar_volume,
         )
     else:
         logger.warning("Unknown UNIVERSE_SOURCE=%r — using DEFAULT_TICKERS", src)
         tickers = settings.default_tickers
 
+    # Apply universe-wide filters before scoring (blend mode already applied
+    # them inline; for the others we apply here so the setting is universal).
+    if settings.exclude_etfs and src != "blend":
+        from app.services.universe_filters import filter_etfs
+        before = len(tickers)
+        tickers = filter_etfs(tickers)
+        if before != len(tickers):
+            logger.info("Filtered %d ETFs from universe", before - len(tickers))
+
+    # Per-ticker news pass — yfinance gives ~4 fresh, ticker-tagged headlines
+    # per name. This is the single biggest improvement to the news leg of
+    # scoring because every ticker now has *some* coverage instead of relying
+    # on the global RSS pipeline matching by keyword.
+    try:
+        ticker_articles = fetch_ticker_news(tickers, max_per_ticker=4)
+        if ticker_articles:
+            ticker_summarized = summarize_batch(
+                ticker_articles,
+                min_confidence=settings.summary_confidence_threshold,
+                llm=llm_cfg,
+                llm_max_articles=settings.llm_summary_max_articles,
+            )
+            # Dedupe by URL against the general pass
+            existing_urls = {a.url for a in summarized}
+            for a in ticker_summarized:
+                if a.url not in existing_urls:
+                    summarized.append(a)
+                    existing_urls.add(a.url)
+            logger.info(
+                "Per-ticker news: fetched=%d added_after_dedup=%d",
+                len(ticker_articles), len(ticker_summarized),
+            )
+    except Exception:
+        logger.warning("Per-ticker news pass failed", exc_info=True)
+
+    # Fetch the universe + SPY in one call; SPY is the relative-strength benchmark.
+    benchmark_ticker = "SPY"
     market = fetch_market_snapshots(
-        tickers,
+        list(set(list(tickers) + [benchmark_ticker])),
         finnhub_enabled=settings.finnhub_enabled,
         finnhub_api_key=settings.finnhub_api_key,
     )
+    benchmark_snapshot = market.get(benchmark_ticker)
     scores = score_stocks(
         tickers,
         summarized,
         market,
         min_confidence=settings.recommendation_confidence_threshold,
         weights=settings.scoring_weights,
+        benchmark=benchmark_snapshot,
     )
     scores = llm_enhance_scores(scores, summarized, llm=llm_cfg)
     store.upsert_articles(summarized)
@@ -963,6 +1009,379 @@ def api_dashboard():
         "stock_time_horizons": opportunity["time_horizons"],
         "stock_statuses": opportunity["statuses"],
         "research_items": research_items,
+    }
+
+
+_MAX_PLANS_PER_REQUEST = 100  # high cap; batch fetch keeps this fast
+_BARS_CACHE_TTL_HOURS = 12.0
+
+
+def _load_bars_cached(ticker: str, *, force: bool = False) -> list[dict] | None:
+    """Cached daily OHLC bars for a ticker. Tries yfinance (primary, no API key)
+    then falls back to Stooq (likely dead since 2025 free-tier removal).
+    Returns None if nothing works. `force=True` bypasses the cache."""
+    sym = (ticker or "").strip().upper()
+    if not sym:
+        return None
+    if not force:
+        cached = store.get_cached_bars(sym, max_age_hours=_BARS_CACHE_TTL_HOURS)
+        if cached:
+            return cached
+    bars = None
+    source = ""
+    try:
+        bars = fetch_yfinance_ohlc(sym, min_rows=30)
+        if bars:
+            source = "yfinance"
+    except Exception:
+        bars = None
+    if not bars:
+        try:
+            bars = fetch_stooq_ohlc(sym, min_rows=30)
+            if bars:
+                source = "stooq"
+        except Exception:
+            bars = None
+    if bars:
+        store.set_cached_bars(sym, bars, source=source)
+    return bars
+
+
+def _load_earnings_cached(ticker: str) -> list[dict] | None:
+    """Cached upcoming earnings events for a ticker. None if unavailable."""
+    sym = (ticker or "").strip().upper()
+    if not sym:
+        return None
+    cached = store.get_cached_earnings(sym, max_age_hours=24.0)
+    if cached is not None:
+        return cached
+    if not settings.finnhub_enabled or not settings.finnhub_api_key:
+        return None
+    try:
+        events = fetch_earnings_events(sym, settings.finnhub_api_key, horizon_days=120)
+    except Exception:
+        events = None
+    if events is not None:
+        store.set_cached_earnings(sym, events)
+    return events
+
+
+_EARNINGS_PENALTY_DAYS = 7
+_DOWNGRADE = {"High": "Med", "Med": "Low", "Low": "Low"}
+
+
+def _apply_earnings_penalty(items: list[dict], *, threshold_days: int = _EARNINGS_PENALTY_DAYS) -> int:
+    """Downgrade conviction by one tier when earnings are within N days.
+    Returns the number of items affected."""
+    affected = 0
+    for it in items:
+        days = (it.get("earnings") or {}).get("daysToNext")
+        if days is None or days > threshold_days:
+            continue
+        current = it.get("conviction")
+        if current in _DOWNGRADE:
+            new = _DOWNGRADE[current]
+            if new != current:
+                it["conviction"] = new
+                it.setdefault("flags", []).append(f"Pre-earnings ({days}d)")
+                affected += 1
+    return affected
+
+
+def _attach_earnings(items: list[dict], *, max_lookups: int = _MAX_PLANS_PER_REQUEST) -> int:
+    """Mutate each item with an `earnings` dict. Parallelized so cold cache
+    on a 50-ticker universe doesn't hang for ~30s."""
+    work = items[:max_lookups]
+    targets = [(idx, (it.get("ticker") or "").strip().upper()) for idx, it in enumerate(work)]
+    targets = [(i, t) for i, t in targets if t]
+    if not targets:
+        return 0
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutTimeout
+
+    results: dict[str, list | None] = {}
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        future_to_sym = {ex.submit(_load_earnings_cached, t): t for _, t in targets}
+        for fut in as_completed(future_to_sym):
+            sym = future_to_sym[fut]
+            try:
+                results[sym] = fut.result(timeout=8.0)
+            except (FutTimeout, Exception):
+                results[sym] = None
+
+    attached = 0
+    for idx, sym in targets:
+        events = results.get(sym)
+        if events is None:
+            continue
+        days = days_to_next_event(events)
+        next_event = next((e for e in events if e.get("date")), None) if events else None
+        work[idx]["earnings"] = {
+            "daysToNext": days,
+            "nextDate": next_event["date"] if next_event else None,
+            "nextHour": next_event.get("hour") if next_event else None,
+            "eventCount": len(events),
+        }
+        attached += 1
+    return attached
+
+
+def _attach_trade_plans(
+    items: list[dict],
+    *,
+    max_plans: int = _MAX_PLANS_PER_REQUEST,
+    force: bool = False,
+) -> int:
+    """Mutate each item with a `plan` dict computed from daily bars. Returns the
+    number of plans actually attached. Also persists new plans for track-record
+    audit (no-op when an open plan already exists for the ticker).
+
+    Strategy: split tickers into cached vs uncached. Batch-fetch uncached bars
+    in ONE yfinance call so we don't pay N round-trips."""
+    if not items:
+        return 0
+    work = items[:max_plans]
+
+    bars_by_ticker: dict[str, list[dict]] = {}
+    needs_fetch: list[str] = []
+
+    for it in work:
+        ticker = (it.get("ticker") or "").strip().upper()
+        if not ticker:
+            continue
+        if not force:
+            cached = store.get_cached_bars(ticker, max_age_hours=_BARS_CACHE_TTL_HOURS)
+            if cached:
+                bars_by_ticker[ticker] = cached
+                continue
+        needs_fetch.append(ticker)
+
+    # ONE yfinance round-trip for everything uncached.
+    if needs_fetch:
+        try:
+            fetched = fetch_yfinance_ohlc_batch(needs_fetch, min_rows=30)
+        except Exception:
+            fetched = {}
+        for sym, bars in fetched.items():
+            bars_by_ticker[sym] = bars
+            try:
+                store.set_cached_bars(sym, bars, source="yfinance")
+            except Exception:
+                pass
+
+    attached = 0
+    for it in work:
+        ticker = (it.get("ticker") or "").strip().upper()
+        bars = bars_by_ticker.get(ticker)
+        if not bars:
+            continue
+        setup = it.get("setup") or ""
+        breakout = "Breakout" in setup or "Gap" in setup
+        plan = compute_trade_plan(bars, breakout_trigger=breakout)
+        if not plan:
+            continue
+        # Last 60 closes for the drawer chart — keep the payload small
+        recent = bars[-60:] if len(bars) > 60 else bars
+        plan["recentCloses"] = [b["close"] for b in recent]
+        plan["recentDates"] = [b["date"] for b in recent]
+        it["plan"] = plan
+        attached += 1
+        if it.get("conviction") in {"High", "Med"}:
+            try:
+                store.record_trade_plan_if_no_open(
+                    ticker=ticker,
+                    entry=plan["entry"],
+                    stop=plan["stop"],
+                    target1=plan["target1"],
+                    target2=plan["target2"],
+                    atr=plan["atr14"],
+                    conviction=it.get("conviction") or "",
+                    setup=setup,
+                )
+            except Exception:
+                pass
+    return attached
+
+
+@app.get("/api/track-record")
+def api_track_record(window_days: int = 30) -> dict[str, object]:
+    """Win-rate summary for recorded trade plans. Resolves outcomes lazily on
+    each call using cached bars."""
+    counts = resolve_open_plans(store, load_bars_fn=_load_bars_cached)
+    stats = compute_win_stats(store, since_days=window_days)
+    return {
+        "stats": stats,
+        "resolution_counts": counts,
+        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+    }
+
+
+@app.get("/api/trade-feed")
+def api_trade_feed(
+    horizon: str | None = None,
+    setup: str | None = None,
+    sector: str | None = None,
+    conviction: str | None = None,
+    sort: str = "conviction_desc",
+    limit: int = 100,
+    with_plans: bool = True,
+    with_earnings: bool = True,
+    hide_earnings_within_days: int | None = None,
+    force: bool = False,
+) -> dict[str, object]:
+    """Unified trade feed — merges scanner rows + radar items into one ranked list."""
+    article_pool = store.get_articles(limit=180)
+    stocks = _stocks_with_live_quotes(store.get_stock_scores(limit=100))
+    previous_scores = store.get_previous_score_map()
+    stock_market_rows = ai_stock_market_dashboard(stocks)
+    opportunity = build_opportunity_view(
+        stocks=stocks,
+        articles=article_pool,
+        previous_scores=previous_scores,
+        stock_market_rows=stock_market_rows,
+    )
+
+    weights = load_explosive_radar_weights()
+    if _explosive_radar_mock_enabled():
+        radar_items = mock_explosive_radar_rows()
+    else:
+        radar_items = build_explosive_radar_payload(
+            stocks,
+            article_pool,
+            finnhub_enabled=settings.finnhub_enabled,
+            finnhub_api_key=settings.finnhub_api_key,
+            weights=weights,
+            sort_by="opportunity",
+        )
+
+    payload = build_trade_feed(
+        scanner_rows=opportunity["rows"],
+        radar_items=radar_items,
+        horizon=horizon,
+        setup=setup,
+        sector=sector,
+        conviction=conviction,
+        sort=sort,
+        limit=limit,
+    )
+
+    plans_attached = 0
+    if with_plans:
+        plans_attached = _attach_trade_plans(payload.get("items") or [], force=force)
+    earnings_attached = 0
+    if with_earnings:
+        earnings_attached = _attach_earnings(payload.get("items") or [])
+
+    # Apply earnings penalty AFTER attach (needs daysToNext) and BEFORE the
+    # hide filter (so an explicit "hide earnings" still works on the raw set).
+    earnings_penalized = _apply_earnings_penalty(payload.get("items") or [])
+
+    if hide_earnings_within_days is not None and hide_earnings_within_days > 0:
+        kept: list[dict] = []
+        for it in payload.get("items") or []:
+            e = it.get("earnings") or {}
+            days = e.get("daysToNext")
+            if days is not None and days <= hide_earnings_within_days:
+                continue
+            kept.append(it)
+        payload["items"] = kept
+
+    # Re-sort after penalty + plan/volume attach so rankings reflect the
+    # quality_score that now includes relative volume + R:R.
+    sort_items(payload.get("items") or [], sort=sort)
+
+    payload.setdefault("summary", {})
+    payload["summary"]["plansAttached"] = plans_attached
+    payload["summary"]["earningsAttached"] = earnings_attached
+    payload["summary"]["earningsPenalized"] = earnings_penalized
+
+    payload["generated_at"] = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+    payload["disclaimer"] = (
+        "Unified research view merging scanner + radar. Not personalized investment advice."
+    )
+    return payload
+
+
+@app.get("/api/portfolio")
+def api_portfolio(tickers: str = "") -> dict[str, object]:
+    """Enrich an arbitrary list of tickers with current price + conviction + plan
+    + earnings. Stateless — positions live in the client's localStorage."""
+    raw = [t.strip().upper() for t in (tickers or "").split(",") if t.strip()]
+    wanted = list(dict.fromkeys(raw))  # dedupe, preserve order
+    if not wanted:
+        return {"items": [], "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())}
+
+    article_pool = store.get_articles(limit=180)
+    stocks = _stocks_with_live_quotes(store.get_stock_scores(limit=100))
+    previous_scores = store.get_previous_score_map()
+    stock_market_rows = ai_stock_market_dashboard(stocks)
+    opportunity = build_opportunity_view(
+        stocks=stocks,
+        articles=article_pool,
+        previous_scores=previous_scores,
+        stock_market_rows=stock_market_rows,
+    )
+    weights = load_explosive_radar_weights()
+    if _explosive_radar_mock_enabled():
+        radar_items = mock_explosive_radar_rows()
+    else:
+        radar_items = build_explosive_radar_payload(
+            stocks,
+            article_pool,
+            finnhub_enabled=settings.finnhub_enabled,
+            finnhub_api_key=settings.finnhub_api_key,
+            weights=weights,
+            sort_by="opportunity",
+        )
+    feed = build_trade_feed(
+        scanner_rows=opportunity["rows"],
+        radar_items=radar_items,
+        limit=500,
+    )
+    by_ticker = {it.get("ticker"): it for it in feed.get("items") or []}
+
+    # Any wanted tickers not in the feed: fetch a live quote so we can still
+    # show current price and P&L.
+    missing = [t for t in wanted if t not in by_ticker]
+    live_snapshots: dict = {}
+    if missing:
+        try:
+            live_snapshots = fetch_market_snapshots(
+                missing,
+                finnhub_enabled=settings.finnhub_enabled,
+                finnhub_api_key=settings.finnhub_api_key,
+            )
+        except Exception:
+            live_snapshots = {}
+
+    items: list[dict] = []
+    for t in wanted:
+        it = by_ticker.get(t)
+        if it is None:
+            snap = live_snapshots.get(t)
+            it = {
+                "ticker": t,
+                "company": None,
+                "sector": None,
+                "price": snap.last_price if snap and snap.last_price > 0 else None,
+                "conviction": "—",
+                "horizon": "Unclear",
+                "setup": "Off-feed",
+                "flags": ["No coverage"],
+                "topReason": "Not in the active scored universe — showing live price only.",
+                "sources": [],
+            }
+        items.append(it)
+
+    _attach_trade_plans(items, max_plans=len(items))
+    _attach_earnings(items, max_lookups=len(items))
+
+    return {
+        "items": items,
+        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        "disclaimer": (
+            "Position snapshots for the tickers you passed. P&L is computed client-side from your cost basis."
+        ),
     }
 
 
