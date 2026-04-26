@@ -6,9 +6,9 @@ const SECTIONS = [
   {
     title: "What's the model telling me?",
     items: [
-      ["Conviction: High", "The model thinks this is one of its better ideas right now. Top-tier picks."],
-      ["Conviction: Med", "Worth watching — has some signal but not the strongest right now."],
-      ["Conviction: Low", "Filler. Either weak signal, conflicting evidence, or pre-earnings penalty."],
+      ["Suggest: Buy", "Top-tier pick. The model thinks this is one of its better ideas right now."],
+      ["Suggest: Wait", "Worth watching — has some signal but not the strongest yet. Add to watchlist."],
+      ["Suggest: Avoid", "Skip. Weak signal, conflicting evidence, or pre-earnings penalty."],
       ["Setup", "What kind of trade pattern this looks like (breakout, momentum continuation, gap-and-go, etc.)."],
       ["Horizon", "Suggested holding window — Intraday (today), Short-term (a few days), Swing (1–2 weeks)."],
       ["Source: SCANNER + RADAR", "Both internal systems agree this ticker is interesting."],
@@ -47,7 +47,7 @@ const SECTIONS = [
       ["High risk", "Radar flagged this as risky — high volatility, thin liquidity, or sharp gap risk."],
       ["Fragile", "Setup looks vulnerable — usually price spike without confirmation, or thin float."],
       ["Low data", "We don't have enough news / signal coverage to be confident. Treat the score with skepticism."],
-      ["Pre-earnings (Nd)", "Conviction was auto-downgraded because earnings are within 7 days."],
+      ["Pre-earnings (Nd)", "Suggestion was auto-downgraded (Buy → Wait → Avoid) because earnings are within 7 days."],
       ["No coverage", "This ticker isn't in our active universe — only basic price info is available."],
     ],
   },

@@ -116,6 +116,19 @@ function convictionTone(label) {
   return "neutral";
 }
 
+function convictionToSuggestion(c) {
+  if (c === "High") return "Buy";
+  if (c === "Med") return "Wait";
+  if (c === "Low") return "Avoid";
+  return "—";
+}
+
+const SUGGESTION_OPTIONS = [
+  { value: "High", label: "Buy" },
+  { value: "Med", label: "Wait" },
+  { value: "Low", label: "Avoid" },
+];
+
 function flagTone(flag) {
   if (flag === "Fragile" || flag === "High risk") return "neg";
   if (flag === "Low data") return "warn";
@@ -227,7 +240,7 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
 
   const sortOptions = useMemo(
     () => [
-      { value: "conviction_desc", label: "Highest conviction (R:R-weighted)" },
+      { value: "conviction_desc", label: "Best suggestion (R:R-weighted)" },
       { value: "quality_desc", label: "Best score × R:R" },
       { value: "delta_desc", label: "Biggest Δ score (up)" },
       { value: "delta_asc", label: "Biggest Δ score (down)" },
@@ -253,7 +266,7 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
               <h2 className="scanner-title">Trade Feed</h2>
               <p className="scanner-subtitle">
                 Unified ranked list &middot; {summary.total ?? 0} ideas &middot;{" "}
-                {summary.highConviction ?? 0} high conviction &middot;{" "}
+                {summary.highConviction ?? 0} buy signals &middot;{" "}
                 {summary.bothSources ?? 0} confirmed by both sources
                 {payload?.generated_at && (
                   <>
@@ -280,7 +293,7 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
 
       <div className="radar-kpi-row">
         <StatCard label="Total ideas" value={summary.total ?? "—"} variant="blue" trend="flat" />
-        <StatCard label="High conviction" value={summary.highConviction ?? "—"} variant="purple" trend="up" />
+        <StatCard label="Buy signals" value={summary.highConviction ?? "—"} variant="purple" trend="up" />
         <StatCard label="Both sources agree" value={summary.bothSources ?? "—"} variant="green" trend="up" />
         <StatCard label="Radar-only spikes" value={summary.radarOnly ?? "—"} variant="gold" trend="down" />
       </div>
@@ -325,9 +338,9 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
           <option value="">All sectors</option>
           {sectors.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select value={filters.conviction} onChange={(e) => updateFilter("conviction", e.target.value)} title="Conviction">
-          <option value="">Any conviction</option>
-          {convictions.map((c) => <option key={c} value={c}>{c}</option>)}
+        <select value={filters.conviction} onChange={(e) => updateFilter("conviction", e.target.value)} title="Suggest">
+          <option value="">Any suggestion</option>
+          {SUGGESTION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select value={filters.sort} onChange={(e) => updateFilter("sort", e.target.value)} title="Sort by">
           {sortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -376,7 +389,7 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
             <thead>
               <tr>
                 <th>Ticker</th>
-                <th>Conviction</th>
+                <th>Suggest</th>
                 <th>Setup</th>
                 {showDetails && <th>Horizon</th>}
                 <th>
@@ -459,8 +472,11 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                     </div>
                   </td>
                   <td>
-                    <span className={`radar-score radar-score--${convictionTone(row.conviction)}`}>
-                      {row.conviction}
+                    <span
+                      className={`radar-score radar-score--${convictionTone(row.conviction)}`}
+                      title={`Model conviction: ${row.conviction}`}
+                    >
+                      {convictionToSuggestion(row.conviction)}
                     </span>
                   </td>
                   <td className="trade-feed__setup-cell">
@@ -585,8 +601,11 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
             <CompanySnapshot ticker={selected.ticker} sectorFallback={selected.sector} />
 
             <div className="radar-badge-row">
-              <span className={`radar-score radar-score--${convictionTone(selected.conviction)}`}>
-                Conviction: {selected.conviction}
+              <span
+                className={`radar-score radar-score--${convictionTone(selected.conviction)}`}
+                title={`Model conviction: ${selected.conviction}`}
+              >
+                Suggest: {convictionToSuggestion(selected.conviction)}
               </span>
               <span className="pill radar-setup-pill">{selected.setup}</span>
               <span className="pill">Horizon: {selected.horizon}</span>

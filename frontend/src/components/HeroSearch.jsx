@@ -90,6 +90,13 @@ function convictionTone(c) {
   return "neutral";
 }
 
+function convictionToSuggestion(c) {
+  if (c === "High") return "Buy";
+  if (c === "Med") return "Wait";
+  if (c === "Low") return "Avoid";
+  return "—";
+}
+
 export default function HeroSearch() {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -326,8 +333,11 @@ export default function HeroSearch() {
             {tradePlan && (
               <>
                 <div className="hero-trade-plan__chips">
-                  <span className={`radar-score radar-score--${convictionTone(tradePlan.conviction)}`}>
-                    Conviction: {tradePlan.conviction}
+                  <span
+                    className={`radar-score radar-score--${convictionTone(tradePlan.conviction)}`}
+                    title={`Model conviction: ${tradePlan.conviction}`}
+                  >
+                    Suggest: {convictionToSuggestion(tradePlan.conviction)}
                   </span>
                   <span className="pill radar-setup-pill">{tradePlan.setup}</span>
                   <span className="pill">Horizon: {tradePlan.horizon}</span>
