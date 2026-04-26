@@ -1,17 +1,21 @@
 /**
  * Compact SVG chart for the trade-plan drawer.
- * Renders the recent close history as a line and overlays the entry/stop/T1/T2
- * levels as horizontal dashed lines. Includes a shaded "risk zone" between
- * entry and stop, and a current-price marker dot.
+ * - In default (60D) mode: renders price line + entry/stop/T1/T2 dashed
+ *   levels + risk/reward shading + current-price marker
+ * - When `closesOverride` is passed (1Y / 5Y mode), renders only the price
+ *   line (levels would visually compress out of usefulness on a long chart)
  *
  * Pure SVG, no chart library. Tuned for the 520px-wide drawer.
  */
-export default function TradePlanChart({ plan, currentPrice }) {
-  if (!plan) return null;
-  const closes = plan.recentCloses || [];
+export default function TradePlanChart({ plan, currentPrice, closesOverride = null, showLevels = true }) {
+  if (!plan && !closesOverride) return null;
+  const closes = closesOverride && closesOverride.length >= 2
+    ? closesOverride
+    : (plan?.recentCloses || []);
   if (closes.length < 2) {
     return <div className="trade-chart__empty">Price history unavailable.</div>;
   }
+  const renderLevels = showLevels && !closesOverride && plan;
 
   const W = 480;
   const H = 200;
@@ -22,10 +26,12 @@ export default function TradePlanChart({ plan, currentPrice }) {
   const innerW = W - PAD_L - PAD_R;
   const innerH = H - PAD_T - PAD_B;
 
-  // Domain — include the plan levels so they're always visible
-  const levels = [plan.entry, plan.stop, plan.target1, plan.target2].filter(
-    (v) => v != null && Number.isFinite(v),
-  );
+  // Domain — include plan levels only when we'll render them
+  const levels = renderLevels
+    ? [plan.entry, plan.stop, plan.target1, plan.target2].filter(
+        (v) => v != null && Number.isFinite(v),
+      )
+    : [];
   const allValues = [...closes, ...levels];
   if (currentPrice != null && Number.isFinite(currentPrice)) {
     allValues.push(currentPrice);
@@ -33,7 +39,6 @@ export default function TradePlanChart({ plan, currentPrice }) {
   const minV = Math.min(...allValues);
   const maxV = Math.max(...allValues);
   const span = maxV - minV || 1;
-  // 6% padding top/bottom so the line/levels don't touch the edges
   const pad = span * 0.06;
   const yMin = minV - pad;
   const yMax = maxV + pad;
@@ -46,15 +51,13 @@ export default function TradePlanChart({ plan, currentPrice }) {
   const areaPath =
     `${linePath} L${xAt(closes.length - 1).toFixed(2)},${(PAD_T + innerH).toFixed(2)} L${PAD_L.toFixed(2)},${(PAD_T + innerH).toFixed(2)} Z`;
 
-  const yEntry = yAt(plan.entry);
-  const yStop = yAt(plan.stop);
-  const yT1 = yAt(plan.target1);
-  const yT2 = yAt(plan.target2);
+  const yEntry = renderLevels ? yAt(plan.entry) : 0;
+  const yStop = renderLevels ? yAt(plan.stop) : 0;
+  const yT1 = renderLevels ? yAt(plan.target1) : 0;
+  const yT2 = renderLevels ? yAt(plan.target2) : 0;
 
-  // Shaded risk zone between entry (top) and stop (bottom)
   const riskTop = Math.min(yEntry, yStop);
   const riskBot = Math.max(yEntry, yStop);
-  // Shaded reward zone between entry and target1
   const rewardTop = Math.min(yEntry, yT1);
   const rewardBot = Math.max(yEntry, yT1);
 
@@ -106,36 +109,41 @@ export default function TradePlanChart({ plan, currentPrice }) {
         </linearGradient>
       </defs>
 
-      {/* risk zone (entry → stop, red tint) */}
-      <rect
-        x={PAD_L}
-        y={riskTop}
-        width={innerW}
-        height={Math.max(0, riskBot - riskTop)}
-        fill="rgba(239, 139, 122, 0.10)"
-      />
-      {/* reward zone (entry → target1, green tint) */}
-      <rect
-        x={PAD_L}
-        y={rewardTop}
-        width={innerW}
-        height={Math.max(0, rewardBot - rewardTop)}
-        fill="rgba(93, 211, 158, 0.10)"
-      />
+      {renderLevels && (
+        <>
+          <rect
+            x={PAD_L}
+            y={riskTop}
+            width={innerW}
+            height={Math.max(0, riskBot - riskTop)}
+            fill="rgba(239, 139, 122, 0.10)"
+          />
+          <rect
+            x={PAD_L}
+            y={rewardTop}
+            width={innerW}
+            height={Math.max(0, rewardBot - rewardTop)}
+            fill="rgba(93, 211, 158, 0.10)"
+          />
+        </>
+      )}
 
       {/* price area + line */}
       <path d={areaPath} fill="url(#tcline)" />
       <path d={linePath} fill="none" stroke="#8b9ff8" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
 
-      {/* level lines + labels */}
-      <Level y={yT2} color="#5dd39e" label="T2" value={plan.target2} />
-      <Level y={yT1} color="#5dd39e" label="T1" value={plan.target1} />
-      <Level y={yEntry} color="#b0b1bf" label="Entry" value={plan.entry} />
-      <Level y={yStop} color="#ef8b7a" label="Stop" value={plan.stop} />
+      {renderLevels && (
+        <>
+          <Level y={yT2} color="#5dd39e" label="T2" value={plan.target2} />
+          <Level y={yT1} color="#5dd39e" label="T1" value={plan.target1} />
+          <Level y={yEntry} color="#b0b1bf" label="Entry" value={plan.entry} />
+          <Level y={yStop} color="#ef8b7a" label="Stop" value={plan.stop} />
+        </>
+      )}
 
-      {/* current price marker — label only if meaningfully different from Entry */}
+      {/* current price marker (always shown) */}
       <circle cx={cx} cy={yLast} r="3.5" fill="#8b9ff8" stroke="#0b0c10" strokeWidth="1.5" />
-      {Math.abs(last - plan.entry) / Math.max(plan.entry, 1) > 0.005 && (
+      {(!renderLevels || Math.abs(last - plan.entry) / Math.max(plan.entry, 1) > 0.005) && (
         <text
           x={cx + 6}
           y={yLast + 3.5}

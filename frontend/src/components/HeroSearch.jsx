@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { searchSP500, getSP500Opinion, fetchPriceForecast, fetchPortfolio } from "../api";
+import { searchSP500, getSP500Opinion, fetchPriceForecast, fetchPortfolio, fetchChart } from "../api";
 import TradePlanChart from "./TradePlanChart";
 import HowToRead from "./HowToRead";
+import CompanySnapshot from "./CompanySnapshot";
 
 const PORTFOLIO_KEY = "ai_market.portfolio_value";
 const RISK_PCT_KEY = "ai_market.portfolio_risk_pct";
@@ -29,6 +30,56 @@ function indicatorTone(label) {
   if (label === "MACD↓" || label === "Overbought" || label === "20d LOW") return "neg";
   if (label && label.startsWith("VOL ")) return label === "VOL ↓" ? "neg" : "pos";
   return "neutral";
+}
+
+function HeroChart({ ticker, plan, currentPrice }) {
+  const [period, setPeriod] = useState("60D");
+  const [longCloses, setLongCloses] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const periods = ["60D", "1Y", "5Y"];
+
+  useEffect(() => {
+    if (period === "60D") {
+      setLongCloses(null);
+      return;
+    }
+    let live = true;
+    setLoading(true);
+    fetchChart(ticker, period.toLowerCase())
+      .then((r) => { if (live) setLongCloses(r?.closes || []); })
+      .catch(() => { if (live) setLongCloses([]); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [ticker, period]);
+
+  return (
+    <>
+      <div className="trade-feed__chart-head">
+        <div className="chart-toggle" role="tablist">
+          {periods.map((p) => (
+            <button
+              key={p}
+              type="button"
+              className={p === period ? "active" : ""}
+              onClick={() => setPeriod(p)}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+      {loading && period !== "60D" ? (
+        <div className="trade-chart__empty">Loading {period} chart…</div>
+      ) : (
+        <TradePlanChart
+          plan={plan}
+          currentPrice={currentPrice}
+          closesOverride={period === "60D" ? null : longCloses}
+          showLevels={period === "60D"}
+        />
+      )}
+    </>
+  );
 }
 
 function convictionTone(c) {
@@ -263,6 +314,8 @@ export default function HeroSearch() {
             </div>
           )}
 
+          <CompanySnapshot ticker={opinion.ticker} sectorFallback={opinion.sector} />
+
           <div className="hero-trade-plan">
             <span className="opinion-section-label">Trade plan</span>
             <HowToRead />
@@ -300,12 +353,16 @@ export default function HeroSearch() {
                 {tradePlan.plan && (
                   <>
                     <div className="hero-trade-plan__chart">
-                      <TradePlanChart plan={tradePlan.plan} currentPrice={tradePlan.price} />
+                      <HeroChart
+                        ticker={tradePlan.ticker}
+                        plan={tradePlan.plan}
+                        currentPrice={tradePlan.price}
+                      />
                       <div className="trade-feed__chart-legend">
                         <span><i style={{ background: "#5dd39e" }} />Targets</span>
                         <span><i style={{ background: "#b0b1bf" }} />Entry</span>
                         <span><i style={{ background: "#ef8b7a" }} />Stop</span>
-                        <span><i style={{ background: "#8b9ff8" }} />Price (60d)</span>
+                        <span><i style={{ background: "#8b9ff8" }} />Price</span>
                       </div>
                     </div>
 

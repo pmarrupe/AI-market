@@ -136,6 +136,15 @@ class Store:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS company_info_cache (
+                    ticker TEXT PRIMARY KEY,
+                    info_json TEXT NOT NULL,
+                    fetched_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS trade_plan_audit (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     ticker TEXT NOT NULL,
@@ -517,6 +526,50 @@ class Store:
                 VALUES (?, ?, ?)
                 ON CONFLICT(ticker) DO UPDATE SET
                     events_json = excluded.events_json,
+                    fetched_at = excluded.fetched_at
+                """,
+                (sym, payload, now_iso),
+            )
+
+    def get_cached_company_info(
+        self, ticker: str, max_age_hours: float = 168.0
+    ) -> dict | None:
+        sym = (ticker or "").strip().upper()
+        if not sym:
+            return None
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT info_json, fetched_at FROM company_info_cache WHERE ticker = ?",
+                (sym,),
+            ).fetchone()
+        if not row:
+            return None
+        try:
+            fetched = _from_iso(row[1])
+        except Exception:
+            return None
+        age_hours = (datetime.now(timezone.utc) - fetched).total_seconds() / 3600
+        if age_hours > max_age_hours:
+            return None
+        try:
+            info = json.loads(row[0])
+            return info if isinstance(info, dict) else None
+        except Exception:
+            return None
+
+    def set_cached_company_info(self, ticker: str, info: dict) -> None:
+        sym = (ticker or "").strip().upper()
+        if not sym or not info:
+            return
+        payload = json.dumps(info)
+        now_iso = _to_iso(datetime.now(timezone.utc))
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO company_info_cache (ticker, info_json, fetched_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(ticker) DO UPDATE SET
+                    info_json = excluded.info_json,
                     fetched_at = excluded.fetched_at
                 """,
                 (sym, payload, now_iso),

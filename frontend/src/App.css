@@ -1794,6 +1794,145 @@ ol { margin: 0; padding-left: 18px; }
   .how-to-read__row dt { font-size: 11.5px; }
 }
 
+/* ── Company Snapshot ─────────────────────────────────────── */
+
+.company-snapshot {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: var(--s-3) var(--s-4);
+  margin-bottom: var(--s-3);
+}
+
+.company-snapshot__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.company-snapshot__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.company-snapshot__link {
+  font-size: 11px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  background: var(--surface);
+  transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast);
+  text-decoration: none;
+}
+.company-snapshot__link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.company-snapshot__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin-bottom: var(--s-3);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--border);
+}
+.company-snapshot__meta strong { color: var(--text); font-weight: 600; }
+.company-snapshot__meta .dim { color: var(--text-muted); font-size: 11px; }
+
+.company-snapshot__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-2) var(--s-3);
+  margin-bottom: var(--s-3);
+}
+.company-snapshot__grid > div { min-width: 0; }
+.company-snapshot__grid p {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.company-snapshot__summary {
+  border-top: 1px solid var(--border);
+  padding-top: var(--s-3);
+}
+
+.company-snapshot__text {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+
+.company-snapshot__text--clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.company-snapshot__more {
+  margin-top: 4px;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  padding: 0;
+  cursor: pointer;
+}
+.company-snapshot__more:hover { color: var(--accent-hover); border: none; background: transparent; box-shadow: none; }
+
+@media (max-width: 720px) {
+  .company-snapshot__grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Chart timeframe toggle ───────────────────────────────── */
+
+.chart-toggle {
+  display: inline-flex;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  margin-left: auto;
+}
+.chart-toggle button {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  border-radius: 0;
+}
+.chart-toggle button:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border: none;
+  box-shadow: none;
+}
+.chart-toggle button.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.trade-feed__chart-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
 /* ── Hero Search trade-plan card ──────────────────────────── */
 
 .hero-trade-plan {

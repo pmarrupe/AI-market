@@ -46,6 +46,7 @@ from app.services.trade_plan import compute_trade_plan
 from app.services.market_data import fetch_stooq_ohlc, fetch_yfinance_ohlc, fetch_yfinance_ohlc_batch
 from app.services.earnings import fetch_earnings_events, days_to_next_event
 from app.services.plan_resolver import resolve_open_plans, compute_win_stats
+from app.services.company_info import fetch_yfinance_company_info
 from app.services.scoring import llm_enhance_scores, score_stocks
 from app.services.summarizer import summarize_batch
 from app.services.blend_universe import build_blend_universe
@@ -1201,6 +1202,53 @@ def _attach_trade_plans(
             except Exception:
                 pass
     return attached
+
+
+@app.get("/api/ticker-info/{ticker}")
+def api_ticker_info(ticker: str) -> dict[str, object]:
+    """Company snapshot: business summary, industry, sector, market cap,
+    quick links targets. Lazy-loaded by the drawer; cached 7 days."""
+    sym = (ticker or "").strip().upper()
+    if not sym:
+        return {"error": "ticker required"}
+    cached = store.get_cached_company_info(sym, max_age_hours=168.0)
+    if cached:
+        return {"info": cached, "cached": True}
+    info = fetch_yfinance_company_info(sym)
+    if info:
+        try:
+            store.set_cached_company_info(sym, info)
+        except Exception:
+            pass
+        return {"info": info, "cached": False}
+    return {"info": None, "error": "no data available"}
+
+
+@app.get("/api/chart/{ticker}")
+def api_chart(ticker: str, period: str = "1y") -> dict[str, object]:
+    """Lightweight chart endpoint — returns date+close arrays for the
+    requested period. Used by the drawer's 60D / 1Y / 5Y toggle."""
+    sym = (ticker or "").strip().upper()
+    if not sym:
+        return {"error": "ticker required"}
+    period_clean = period.strip().lower() if period else "1y"
+    if period_clean not in {"60d", "6mo", "1y", "2y", "5y", "10y"}:
+        period_clean = "1y"
+    yf_period = {"60d": "90d"}.get(period_clean, period_clean)
+    try:
+        bars = fetch_yfinance_ohlc(sym, period=yf_period, min_rows=10)
+    except Exception:
+        bars = None
+    if not bars:
+        return {"ticker": sym, "period": period_clean, "closes": [], "dates": []}
+    if period_clean == "60d":
+        bars = bars[-60:]
+    return {
+        "ticker": sym,
+        "period": period_clean,
+        "closes": [b["close"] for b in bars],
+        "dates": [b["date"] for b in bars],
+    }
 
 
 @app.get("/api/track-record")

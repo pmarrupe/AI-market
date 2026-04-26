@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchTradeFeed } from "../api";
+import { fetchTradeFeed, fetchChart } from "../api";
 import StatCard from "./ui/StatCard";
 import TableSkeleton from "./ui/TableSkeleton";
 import EmptyState from "./ui/EmptyState";
 import Tooltip from "./ui/Tooltip";
 import TradePlanChart from "./TradePlanChart";
 import HowToRead from "./HowToRead";
+import CompanySnapshot from "./CompanySnapshot";
 
 const HORIZON_ORDER = ["Intraday", "Short-term", "Swing", "Long-term watch", "Unclear"];
 const PORTFOLIO_KEY = "ai_market.portfolio_value";
@@ -39,6 +40,56 @@ function suggestShares(portfolioValue, riskPct, riskPerShare) {
   const dollarsAtRisk = portfolioValue * (riskPct / 100);
   const shares = Math.floor(dollarsAtRisk / riskPerShare);
   return shares > 0 ? shares : null;
+}
+
+function DrawerChart({ ticker, plan, currentPrice }) {
+  const [period, setPeriod] = useState("60D");
+  const [longCloses, setLongCloses] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const periods = ["60D", "1Y", "5Y"];
+
+  useEffect(() => {
+    if (period === "60D") {
+      setLongCloses(null);
+      return;
+    }
+    let live = true;
+    setLoading(true);
+    fetchChart(ticker, period.toLowerCase())
+      .then((r) => { if (live) setLongCloses(r?.closes || []); })
+      .catch(() => { if (live) setLongCloses([]); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [ticker, period]);
+
+  return (
+    <>
+      <div className="trade-feed__chart-head">
+        <div className="chart-toggle" role="tablist">
+          {periods.map((p) => (
+            <button
+              key={p}
+              type="button"
+              className={p === period ? "active" : ""}
+              onClick={() => setPeriod(p)}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+      {loading && period !== "60D" ? (
+        <div className="trade-chart__empty">Loading {period} chart…</div>
+      ) : (
+        <TradePlanChart
+          plan={plan}
+          currentPrice={currentPrice}
+          closesOverride={period === "60D" ? null : longCloses}
+          showLevels={period === "60D"}
+        />
+      )}
+    </>
+  );
 }
 
 function relativeTimeFromUTC(utcStr) {
@@ -522,6 +573,8 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
 
             <HowToRead />
 
+            <CompanySnapshot ticker={selected.ticker} sectorFallback={selected.sector} />
+
             <div className="radar-badge-row">
               <span className={`radar-score radar-score--${convictionTone(selected.conviction)}`}>
                 Conviction: {selected.conviction}
@@ -544,12 +597,16 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                 <div className="detail-card-label">Trade plan</div>
                 <div className="detail-card radar-detail-block trade-feed__plan">
                   <div className="trade-feed__chart-wrap">
-                    <TradePlanChart plan={selected.plan} currentPrice={selected.price} />
+                    <DrawerChart
+                      ticker={selected.ticker}
+                      plan={selected.plan}
+                      currentPrice={selected.price}
+                    />
                     <div className="trade-feed__chart-legend">
                       <span><i style={{ background: "#5dd39e" }} />Targets</span>
                       <span><i style={{ background: "#b0b1bf" }} />Entry</span>
                       <span><i style={{ background: "#ef8b7a" }} />Stop</span>
-                      <span><i style={{ background: "#8b9ff8" }} />Price (60d)</span>
+                      <span><i style={{ background: "#8b9ff8" }} />Price</span>
                     </div>
                   </div>
                   <div className="trade-feed__plan-grid">

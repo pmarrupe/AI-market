@@ -28,6 +28,24 @@ export async function getSP500Opinion(ticker) {
   return res.json();
 }
 
+export async function fetchTickerInfo(ticker) {
+  const t = (ticker || "").trim().toUpperCase();
+  if (!t) return { info: null };
+  const res = await fetch(`${BASE}/api/ticker-info/${encodeURIComponent(t)}`);
+  if (!res.ok) throw new Error(`Ticker info failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchChart(ticker, period = "1y") {
+  const t = (ticker || "").trim().toUpperCase();
+  if (!t) return { closes: [], dates: [] };
+  const res = await fetch(
+    `${BASE}/api/chart/${encodeURIComponent(t)}?period=${encodeURIComponent(period)}`,
+  );
+  if (!res.ok) throw new Error(`Chart failed: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchTrackRecord(windowDays = 30) {
   const res = await fetch(`${BASE}/api/track-record?window_days=${windowDays}`);
   if (!res.ok) throw new Error(`Track record fetch failed: ${res.status}`);
