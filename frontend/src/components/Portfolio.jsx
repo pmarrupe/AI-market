@@ -122,14 +122,10 @@ export default function Portfolio() {
   const totals = useMemo(() => {
     let marketValue = 0;
     let costValue = 0;
-    let dollarsAtRisk = 0;     // sum of (current_price - stop) * shares for positions with a plan
-    let dollarsAtT1 = 0;       // sum of (target1 - current_price) * shares
-    let positionsWithPlan = 0;
     let hasAllPrices = true;
     positions.forEach((p) => {
       const it = itemByTicker[p.ticker];
       const price = it?.price;
-      const plan = it?.plan;
       if (price != null && Number.isFinite(price)) {
         marketValue += price * p.shares;
       } else {
@@ -138,21 +134,9 @@ export default function Portfolio() {
       if (p.costBasis != null) {
         costValue += p.costBasis * p.shares;
       }
-      if (plan && price != null) {
-        // Risk = $ you'd lose if price falls to stop FROM CURRENT
-        const perShareRisk = price - plan.stop;
-        if (perShareRisk > 0) dollarsAtRisk += perShareRisk * p.shares;
-        // Upside = $ if price rises to T1 from current
-        const perShareUpside = plan.target1 - price;
-        if (perShareUpside > 0) dollarsAtT1 += perShareUpside * p.shares;
-        positionsWithPlan += 1;
-      }
     });
     const pnl = hasAllPrices && costValue > 0 ? marketValue - costValue : null;
-    return {
-      marketValue, costValue, pnl, hasAllPrices,
-      dollarsAtRisk, dollarsAtT1, positionsWithPlan,
-    };
+    return { marketValue, costValue, pnl, hasAllPrices };
   }, [positions, itemByTicker]);
 
   if (positions.length === 0 && !editing) {
@@ -246,31 +230,6 @@ export default function Portfolio() {
               </p>
             </div>
           </div>
-
-          {totals.positionsWithPlan > 0 && (
-            <div className="portfolio__totals portfolio__risk">
-              <div>
-                <span className="detail-card-label">$ at risk if stopped</span>
-                <p className="font-mono down">−${totals.dollarsAtRisk.toFixed(0)}</p>
-              </div>
-              <div>
-                <span className="detail-card-label">$ upside if all hit T1</span>
-                <p className="font-mono up">+${totals.dollarsAtT1.toFixed(0)}</p>
-              </div>
-              <div>
-                <span className="detail-card-label">Reward / risk</span>
-                <p className="font-mono">
-                  {totals.dollarsAtRisk > 0
-                    ? `${(totals.dollarsAtT1 / totals.dollarsAtRisk).toFixed(2)}×`
-                    : "—"}
-                </p>
-              </div>
-              <div>
-                <span className="detail-card-label">Plans on positions</span>
-                <p className="font-mono">{totals.positionsWithPlan} / {positions.length}</p>
-              </div>
-            </div>
-          )}
 
           <div className="scanner-table-wrap">
             <table className="scanner-table">
