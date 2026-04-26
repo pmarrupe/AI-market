@@ -631,10 +631,10 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                       currentPrice={selected.price}
                     />
                     <div className="trade-feed__chart-legend">
-                      <span><i style={{ background: "#5dd39e" }} />Targets</span>
-                      <span><i style={{ background: "#b0b1bf" }} />Entry</span>
-                      <span><i style={{ background: "#ef8b7a" }} />Stop</span>
-                      <span><i style={{ background: "#8b9ff8" }} />Price</span>
+                      <span><i style={{ background: "#10b981" }} />Targets</span>
+                      <span><i style={{ background: "#64748b" }} />Entry</span>
+                      <span><i style={{ background: "#ef4444" }} />Stop</span>
+                      <span><i style={{ background: "#3b82f6" }} />Price</span>
                     </div>
                   </div>
                   <div className="trade-feed__plan-grid">

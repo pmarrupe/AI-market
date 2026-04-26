@@ -104,8 +104,8 @@ export default function TradePlanChart({ plan, currentPrice, closesOverride = nu
     >
       <defs>
         <linearGradient id="tcline" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(139, 159, 248, 0.30)" />
-          <stop offset="100%" stopColor="rgba(139, 159, 248, 0)" />
+          <stop offset="0%" stopColor="rgba(59, 130, 246, 0.22)" />
+          <stop offset="100%" stopColor="rgba(59, 130, 246, 0)" />
         </linearGradient>
       </defs>
 
@@ -116,46 +116,46 @@ export default function TradePlanChart({ plan, currentPrice, closesOverride = nu
             y={riskTop}
             width={innerW}
             height={Math.max(0, riskBot - riskTop)}
-            fill="rgba(239, 139, 122, 0.10)"
+            fill="rgba(239, 68, 68, 0.08)"
           />
           <rect
             x={PAD_L}
             y={rewardTop}
             width={innerW}
             height={Math.max(0, rewardBot - rewardTop)}
-            fill="rgba(93, 211, 158, 0.10)"
+            fill="rgba(16, 185, 129, 0.08)"
           />
         </>
       )}
 
       {/* price area + line */}
       <path d={areaPath} fill="url(#tcline)" />
-      <path d={linePath} fill="none" stroke="#8b9ff8" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <path d={linePath} fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
 
       {renderLevels && (
         <>
           {Number.isFinite(plan.target2) && (
-            <Level y={yT2} color="#5dd39e" label="T2" value={plan.target2} />
+            <Level y={yT2} color="#10b981" label="T2" value={plan.target2} />
           )}
           {Number.isFinite(plan.target1) && (
-            <Level y={yT1} color="#5dd39e" label="T1" value={plan.target1} />
+            <Level y={yT1} color="#10b981" label="T1" value={plan.target1} />
           )}
           {Number.isFinite(plan.entry) && (
-            <Level y={yEntry} color="#b0b1bf" label="Entry" value={plan.entry} />
+            <Level y={yEntry} color="#64748b" label="Entry" value={plan.entry} />
           )}
           {Number.isFinite(plan.stop) && (
-            <Level y={yStop} color="#ef8b7a" label="Stop" value={plan.stop} />
+            <Level y={yStop} color="#ef4444" label="Stop" value={plan.stop} />
           )}
         </>
       )}
 
       {/* current price marker (always shown) */}
-      <circle cx={cx} cy={yLast} r="3.5" fill="#8b9ff8" stroke="#0b0c10" strokeWidth="1.5" />
+      <circle cx={cx} cy={yLast} r="3.5" fill="#3b82f6" stroke="#ffffff" strokeWidth="1.5" />
       {(!renderLevels || Math.abs(last - plan.entry) / Math.max(plan.entry, 1) > 0.005) && (
         <text
           x={cx + 6}
           y={yLast + 3.5}
-          fill="#8b9ff8"
+          fill="#3b82f6"
           fontSize="10"
           fontFamily="JetBrains Mono, monospace"
           fontWeight="600"

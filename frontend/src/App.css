@@ -7,45 +7,43 @@
 /* ── Design tokens ─────────────────────────────────────────── */
 
 :root {
-  /* Surfaces — lifted from pure black so panels feel alive */
-  --bg: #12131c;
-  --bg-gradient: radial-gradient(1200px 600px at 15% -10%, rgba(139, 159, 248, 0.08), transparent 60%),
-                 radial-gradient(900px 500px at 90% 110%, rgba(167, 139, 250, 0.05), transparent 60%),
-                 #12131c;
-  --surface: #1c1d28;
-  --surface-2: #262834;
-  --surface-3: #323545;
-  --surface-raise: linear-gradient(180deg, #20212d 0%, #1c1d28 100%);
-  --overlay: rgba(10, 11, 16, 0.68);
+  /* Light theme — soft blue-gray bg, white cards, dark text */
+  --bg: #f4f7fb;
+  --bg-gradient: #f4f7fb;
+  --surface: #ffffff;
+  --surface-2: #f7f9fc;
+  --surface-3: #eef2f7;
+  --surface-raise: linear-gradient(180deg, #ffffff 0%, #f9fafc 100%);
+  --overlay: rgba(15, 23, 42, 0.40);
 
-  /* Borders — a touch of blue/indigo so they feel warm */
-  --border: #2d2f3f;
-  --border-strong: #484a60;
+  /* Borders — light, subtle */
+  --border: #e4e8ee;
+  --border-strong: #c7d0db;
 
-  /* Text — brighter primary for more life */
-  --text: #f4f4f8;
-  --text-dim: #b0b1bf;
-  --text-muted: #7a7c8c;
+  /* Text — dark on light surfaces */
+  --text: #1a202c;
+  --text-dim: #4a5568;
+  --text-muted: #94a3b8;
 
-  /* Accent — indigo-violet duo-tone, richer than before */
-  --accent: #8b9ff8;
-  --accent-strong: #a78bfa;
-  --accent-hover: #a5b5fa;
-  --accent-bg: rgba(139, 159, 248, 0.14);
-  --accent-bg-strong: rgba(139, 159, 248, 0.22);
-  --accent-border: rgba(139, 159, 248, 0.40);
-  --accent-gradient: linear-gradient(135deg, #8b9ff8 0%, #a78bfa 100%);
+  /* Accent — a clean blue */
+  --accent: #3b82f6;
+  --accent-strong: #6366f1;
+  --accent-hover: #2563eb;
+  --accent-bg: rgba(59, 130, 246, 0.10);
+  --accent-bg-strong: rgba(59, 130, 246, 0.18);
+  --accent-border: rgba(59, 130, 246, 0.32);
+  --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
 
-  /* Semantic — a little more saturation so wins/losses read instantly */
-  --up: #5dd39e;
-  --up-bg: rgba(93, 211, 158, 0.14);
-  --up-border: rgba(93, 211, 158, 0.38);
-  --down: #ef8b7a;
-  --down-bg: rgba(239, 139, 122, 0.14);
-  --down-border: rgba(239, 139, 122, 0.38);
-  --warn: #f5c879;
-  --warn-bg: rgba(245, 200, 121, 0.12);
-  --warn-border: rgba(245, 200, 121, 0.38);
+  /* Semantic — vivid on light bg */
+  --up: #10b981;
+  --up-bg: rgba(16, 185, 129, 0.10);
+  --up-border: rgba(16, 185, 129, 0.32);
+  --down: #ef4444;
+  --down-bg: rgba(239, 68, 68, 0.10);
+  --down-border: rgba(239, 68, 68, 0.32);
+  --warn: #f59e0b;
+  --warn-bg: rgba(245, 158, 11, 0.12);
+  --warn-border: rgba(245, 158, 11, 0.36);
 
   /* Typography */
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -189,7 +187,7 @@ select {
   appearance: none;
   -webkit-appearance: none;
   padding-right: 28px;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239a9aa4' stroke-width='1.4' fill='none' stroke-linecap='round'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.4' fill='none' stroke-linecap='round'/></svg>");
   background-repeat: no-repeat;
   background-position: right 10px center;
 }
@@ -241,7 +239,7 @@ ol { margin: 0; padding-left: 18px; }
 /* ── Sidebar ───────────────────────────────────────────────── */
 
 .sidebar {
-  background: linear-gradient(180deg, rgba(28, 29, 40, 0.95) 0%, rgba(28, 29, 40, 0.75) 100%);
+  background: var(--surface);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-right: 1px solid var(--border);
@@ -354,8 +352,7 @@ ol { margin: 0; padding-left: 18px; }
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   padding: var(--s-5);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset,
-              0 12px 32px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 .panel-grid {
@@ -434,37 +431,26 @@ ol { margin: 0; padding-left: 18px; }
   gap: var(--s-4);
 }
 
-.stat-card,
-.stat-card--blue,
-.stat-card--purple,
-.stat-card--green,
-.stat-card--gold,
-.stat-card--teal,
-.stat-card--red {
+/* KPI cards — full-color fills like the dashboard reference */
+.stat-card {
   position: relative;
-  background: var(--surface-raise);
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: var(--s-4);
+  border-radius: var(--r-lg);
+  padding: var(--s-4) var(--s-5);
   overflow: hidden;
-  transition: border-color var(--t-fast), transform var(--t-fast);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
-              0 8px 24px rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+  transition: transform var(--t-fast), box-shadow var(--t-fast);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
 }
-.stat-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent-border), transparent);
-  opacity: 0.6;
-}
-.stat-card:hover {
-  border-color: var(--border-strong);
-  transform: translateY(-1px);
-}
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12); }
+
+.stat-card--blue   { background: linear-gradient(135deg, #3b82f6, #6366f1); border-color: transparent; }
+.stat-card--teal   { background: linear-gradient(135deg, #14b8a6, #06b6d4); border-color: transparent; }
+.stat-card--green  { background: linear-gradient(135deg, #10b981, #22c55e); border-color: transparent; }
+.stat-card--purple { background: linear-gradient(135deg, #ec4899, #f43f5e); border-color: transparent; }
+.stat-card--gold   { background: linear-gradient(135deg, #f59e0b, #f97316); border-color: transparent; }
+.stat-card--red    { background: linear-gradient(135deg, #ef4444, #f97316); border-color: transparent; }
 
 .stat-card__sparkline {
   position: absolute;
@@ -480,29 +466,33 @@ ol { margin: 0; padding-left: 18px; }
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.85);
   margin-bottom: var(--s-2);
 }
 .stat-card__icon {
   display: inline-flex;
   width: 14px;
   height: 14px;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.95);
 }
 .stat-card__label {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.85);
 }
 .stat-card__value {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 26px;
-  font-weight: 600;
-  color: var(--text);
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffffff;
   letter-spacing: -0.01em;
+}
+.stat-card__sparkline {
+  color: rgba(255, 255, 255, 0.55);
+  opacity: 1;
 }
 
 /* ── Section heading (used in scanner/radar/trade feed) ────── */
