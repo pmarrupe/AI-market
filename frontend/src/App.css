@@ -431,7 +431,7 @@ ol { margin: 0; padding-left: 18px; }
   gap: var(--s-4);
 }
 
-/* KPI cards — full-color fills like the dashboard reference */
+/* KPI cards — soft pastel fills */
 .stat-card {
   position: relative;
   background: var(--surface);
@@ -439,18 +439,18 @@ ol { margin: 0; padding-left: 18px; }
   border-radius: var(--r-lg);
   padding: var(--s-4) var(--s-5);
   overflow: hidden;
-  color: #ffffff;
+  color: #1f2937;
   transition: transform var(--t-fast), box-shadow var(--t-fast);
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
 }
-.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12); }
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(15, 23, 42, 0.10); }
 
-.stat-card--blue   { background: linear-gradient(135deg, #3b82f6, #6366f1); border-color: transparent; }
-.stat-card--teal   { background: linear-gradient(135deg, #14b8a6, #06b6d4); border-color: transparent; }
-.stat-card--green  { background: linear-gradient(135deg, #10b981, #22c55e); border-color: transparent; }
-.stat-card--purple { background: linear-gradient(135deg, #ec4899, #f43f5e); border-color: transparent; }
-.stat-card--gold   { background: linear-gradient(135deg, #f59e0b, #f97316); border-color: transparent; }
-.stat-card--red    { background: linear-gradient(135deg, #ef4444, #f97316); border-color: transparent; }
+.stat-card--blue   { background: linear-gradient(135deg, #dbeafe, #e0e7ff); border-color: #bfdbfe; }
+.stat-card--teal   { background: linear-gradient(135deg, #ccfbf1, #cffafe); border-color: #99f6e4; }
+.stat-card--green  { background: linear-gradient(135deg, #d1fae5, #dcfce7); border-color: #a7f3d0; }
+.stat-card--purple { background: linear-gradient(135deg, #fce7f3, #ffe4e6); border-color: #fbcfe8; }
+.stat-card--gold   { background: linear-gradient(135deg, #fef3c7, #ffedd5); border-color: #fde68a; }
+.stat-card--red    { background: linear-gradient(135deg, #fee2e2, #ffedd5); border-color: #fecaca; }
 
 .stat-card__sparkline {
   position: absolute;
@@ -466,33 +466,33 @@ ol { margin: 0; padding-left: 18px; }
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  color: rgba(255, 255, 255, 0.85);
+  color: #475569;
   margin-bottom: var(--s-2);
 }
 .stat-card__icon {
   display: inline-flex;
   width: 14px;
   height: 14px;
-  color: rgba(255, 255, 255, 0.95);
+  color: #475569;
 }
 .stat-card__label {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.85);
+  color: #475569;
 }
 .stat-card__value {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 28px;
   font-weight: 700;
-  color: #ffffff;
+  color: #0f172a;
   letter-spacing: -0.01em;
 }
 .stat-card__sparkline {
-  color: rgba(255, 255, 255, 0.55);
-  opacity: 1;
+  color: #64748b;
+  opacity: 0.5;
 }
 
 /* ── Section heading (used in scanner/radar/trade feed) ────── */
