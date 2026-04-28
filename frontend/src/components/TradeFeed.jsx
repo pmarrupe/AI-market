@@ -194,7 +194,7 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
       sort: f.sort || "conviction_desc",
       hide_earnings_within_days: f.hideEarningsWithin || undefined,
       force: opts.force ? "true" : undefined,
-      limit: 100,
+      limit: 10,
     }),
     [],
   );
