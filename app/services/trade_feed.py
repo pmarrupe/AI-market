@@ -207,10 +207,13 @@ def _merge_items(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
 
 
 def _quality_score(item: dict[str, Any]) -> float:
-    """Composite quality used as the conviction tiebreaker and as the
-    standalone `quality_desc` sort. Combines model score with trade-plan R:R
-    AND relative-volume confirmation so high-quality trades on heavy volume
-    rank above the same setup on quiet volume."""
+    """Composite quality — the primary ranking signal for the default feed
+    sort. Combines model score with trade-plan R:R AND relative-volume
+    confirmation so high-quality trades on heavy volume rank above the same
+    setup on quiet volume. The High/Med/Low bucket remains as a display badge
+    (and is still used for source-merge tie-breaking) but no longer drives
+    the ordering — that prevents a borderline-High from beating a strong-Med
+    purely because of where the threshold falls."""
     radar = item.get("radar") or {}
     scanner = item.get("scanner") or {}
     plan = item.get("plan") or {}
@@ -238,11 +241,6 @@ def sort_items(items: list[dict[str, Any]], sort: str = "conviction_desc") -> li
 def _sort_key(sort: str):
     sort = (sort or "").lower()
 
-    def conviction_rank(item: dict[str, Any]) -> tuple[float, float]:
-        primary = float(_CONVICTION_ORDER.get(item.get("conviction", "—"), 0))
-        # Within a conviction tier, rank by risk-adjusted quality.
-        return (primary, _quality_score(item))
-
     if sort == "quality_desc":
         return _quality_score, True
     if sort == "delta_desc":
@@ -259,8 +257,9 @@ def _sort_key(sort: str):
         )
     if sort == "jump_desc":
         return lambda x: float((x.get("radar") or {}).get("jumpScore") or 0), True
-    # default: conviction desc
-    return conviction_rank, True
+    # default ("conviction_desc"): rank by the continuous quality score so
+    # near-threshold buckets don't dominate. Bucket is preserved as a badge.
+    return _quality_score, True
 
 
 def build_trade_feed(
