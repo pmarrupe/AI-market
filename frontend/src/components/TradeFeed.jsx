@@ -478,6 +478,18 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
                     >
                       {convictionToSuggestion(row.conviction)}
                     </span>
+                    {row.conviction === "High" && plan && (() => {
+                      const ml = macdLabel(plan.macd, plan.macdSignal, plan.rsi14);
+                      if (!ml || ml.tone !== "down") return null;
+                      return (
+                        <span
+                          className="indicator-chip indicator-chip--neg trade-feed__suggest-warn"
+                          title={`Model says Buy but daily MACD is ${ml.label.toLowerCase()} (${plan.macd?.toFixed(2)} vs signal ${plan.macdSignal?.toFixed(2)}). News/catalyst is leading the chart — wait for confirmation or size smaller.`}
+                        >
+                          chart {ml.label.toLowerCase()}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="trade-feed__setup-cell">
                     <span className="pill radar-setup-pill">{row.setup}</span>

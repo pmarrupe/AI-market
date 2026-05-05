@@ -2164,6 +2164,14 @@ ol { margin: 0; padding-left: 18px; }
   background: var(--warn-bg);
 }
 
+.trade-feed__suggest-warn {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .trade-feed__chart-wrap {
   margin: 0 -4px var(--s-3);
   padding: var(--s-3);
