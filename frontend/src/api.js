@@ -72,6 +72,14 @@ export async function fetchTradeFeed(query = {}) {
   return res.json();
 }
 
+export async function fetchGrowthLeaders({ limit = 20 } = {}) {
+  const qs = new URLSearchParams();
+  qs.set("limit", String(limit));
+  const res = await fetch(`${BASE}/api/growth-leaders?${qs.toString()}`);
+  if (!res.ok) throw new Error(`Growth leaders failed: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchExplosiveRadar(query = {}) {
   const qs = new URLSearchParams();
   Object.entries(query).forEach(([k, v]) => {

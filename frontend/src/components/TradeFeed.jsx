@@ -7,6 +7,7 @@ import Tooltip from "./ui/Tooltip";
 import TradePlanChart from "./TradePlanChart";
 import HowToRead from "./HowToRead";
 import CompanySnapshot from "./CompanySnapshot";
+import GrowthLeaders from "./GrowthLeaders";
 import { macdLabel } from "../utils/macd";
 
 const HORIZON_ORDER = ["Intraday", "Short-term", "Swing", "Long-term watch", "Unclear"];
@@ -181,6 +182,7 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
   const [portfolioValue, setPortfolioValue] = useState(() => readNumber(PORTFOLIO_KEY, 10000));
   const [riskPct, setRiskPct] = useState(() => readNumber(RISK_PCT_KEY, 1));
   const [showDetails, setShowDetails] = useState(false);
+  const [showGrowth, setShowGrowth] = useState(false);
 
   useEffect(() => writeNumber(PORTFOLIO_KEY, portfolioValue), [portfolioValue]);
   useEffect(() => writeNumber(RISK_PCT_KEY, riskPct), [riskPct]);
@@ -278,15 +280,25 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            className="radar-refresh"
-            onClick={() => load(null, { force: true })}
-            disabled={loading}
-            title="Re-fetch trade feed and recompute trade plans (bypasses 12h bar cache)"
-          >
-            {loading ? "Refreshing…" : "Refresh feed"}
-          </button>
+          <div className="radar-header__actions">
+            <button
+              type="button"
+              className="radar-growth-btn"
+              onClick={() => setShowGrowth(true)}
+              title="Long-horizon screen — stocks showing the multi-quarter signature"
+            >
+              📈 Show growth leaders
+            </button>
+            <button
+              type="button"
+              className="radar-refresh"
+              onClick={() => load(null, { force: true })}
+              disabled={loading}
+              title="Re-fetch trade feed and recompute trade plans (bypasses 12h bar cache)"
+            >
+              {loading ? "Refreshing…" : "Refresh feed"}
+            </button>
+          </div>
         </div>
         {payload?.disclaimer && <p className="radar-disclaimer">{payload.disclaimer}</p>}
       </div>
@@ -730,6 +742,8 @@ export default function TradeFeed({ sortIntent = null, onRequestRefresh }) {
           </aside>
         </div>
       )}
+
+      <GrowthLeaders open={showGrowth} onClose={() => setShowGrowth(false)} />
     </section>
   );
 }

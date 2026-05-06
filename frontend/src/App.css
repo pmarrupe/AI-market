@@ -956,6 +956,176 @@ ol { margin: 0; padding-left: 18px; }
   padding: 6px 12px;
 }
 
+.radar-header__actions {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.radar-growth-btn {
+  font-size: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--accent-border, var(--border));
+  border-radius: var(--r-sm);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.10), rgba(139, 92, 246, 0.10));
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 500;
+  transition: filter 0.15s ease;
+}
+.radar-growth-btn:hover { filter: brightness(1.08); }
+
+/* ── Growth Leaders modal ──────────────────────────────────── */
+
+.growth-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  backdrop-filter: blur(3px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-4);
+}
+
+.growth-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  width: min(1100px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+}
+
+.growth-modal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: var(--s-4);
+  border-bottom: 1px solid var(--border);
+  gap: var(--s-3);
+}
+.growth-modal__head h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+.growth-modal__sub {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  max-width: 720px;
+  line-height: 1.5;
+}
+.growth-modal__close {
+  background: transparent;
+  border: 0;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-dim);
+  padding: 0 8px;
+}
+.growth-modal__close:hover { color: var(--text); }
+
+.growth-modal__meta {
+  padding: var(--s-3) var(--s-4);
+  font-size: 12px;
+  color: var(--text-dim);
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.growth-modal__state {
+  padding: var(--s-5) var(--s-4);
+  text-align: center;
+  color: var(--text-dim);
+}
+.growth-modal__state--err { color: var(--neg); }
+
+.growth-modal__table-wrap {
+  overflow: auto;
+  flex: 1;
+  padding: 0 var(--s-4) var(--s-3);
+}
+.growth-modal__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.growth-modal__table th,
+.growth-modal__table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.growth-modal__table th {
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.growth-modal__rank {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  width: 24px;
+}
+.growth-modal__co {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.growth-modal__sector {
+  color: var(--text-muted);
+}
+.growth-modal__score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 14px;
+}
+.growth-modal__num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+.growth-modal__num--pos { color: var(--pos, #16a34a); }
+.growth-modal__num--pos-soft { color: var(--pos-soft, #4ade80); }
+.growth-modal__num--neg { color: var(--neg, #dc2626); }
+.growth-modal__num--muted { color: var(--text-dim); }
+
+.growth-modal__chip {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+}
+.growth-modal__chip--pos { color: var(--pos, #16a34a); border-color: var(--pos-border, #86efac); background: var(--pos-bg, #f0fdf4); }
+.growth-modal__chip--pos-soft { color: var(--pos, #16a34a); }
+.growth-modal__chip--neg { color: var(--neg, #dc2626); border-color: var(--neg-border, #fca5a5); background: var(--neg-bg, #fef2f2); }
+.growth-modal__chip--muted { color: var(--text-dim); }
+
+.growth-modal__disclaimer {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
 .radar-spark { display: block; }
 .radar-spark-empty {
   font-size: 11px;

@@ -42,6 +42,7 @@ from app.services.price_forecast import (
 )
 from app.services.opportunity_signals import build_opportunity_view
 from app.services.trade_feed import build_trade_feed, sort_items
+from app.services.growth_leaders import build_growth_leaders
 from app.services.trade_plan import compute_trade_plan
 from app.services.market_data import fetch_stooq_ohlc, fetch_yfinance_ohlc, fetch_yfinance_ohlc_batch
 from app.services.earnings import fetch_earnings_events, days_to_next_event
@@ -1346,6 +1347,23 @@ def api_trade_feed(
     payload["generated_at"] = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
     payload["disclaimer"] = (
         "Unified research view merging scanner + radar. Not personalized investment advice."
+    )
+    return payload
+
+
+@app.get("/api/growth-leaders")
+def api_growth_leaders(limit: int = 20, universe_size: int = 200) -> dict[str, object]:
+    """Long-horizon growth-leader screen — ranks stocks by the multi-quarter
+    signature (sustained price strength, trend alignment, 52w-high proximity,
+    relative strength vs SPY, volume confirmation). Companion to the trade
+    feed; different time horizon (months, not days)."""
+    stocks = store.get_stock_scores(limit=max(50, min(500, universe_size)))
+    payload = build_growth_leaders(stocks, limit=max(1, min(50, limit)))
+    payload["generated_at"] = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+    payload["disclaimer"] = (
+        "Growth-leader signature screen — not a prediction. Surfaces stocks "
+        "showing the technical pattern often seen early in multi-quarter runs. "
+        "Most flagged names will not deliver outsized returns."
     )
     return payload
 
